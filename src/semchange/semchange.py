@@ -1385,11 +1385,11 @@ def main(
         handler.logreg()
         handler.nn_comparison()
     elif model == 'retro' or model == 'retrofit':
-        handler.retrofit_prep(retrofit_outdir=retrofit_outdir, overwrite = True)
+        handler.retrofit_prep(retrofit_outdir=retrofit_outdir, overwrite = False)
         handler.model(outdir, by='retrofit', overwrite=False)
         handler.woi(change_list, no_change_list)
         handler.retrofit_main_create_synonyms()
-        handler.retrofit_create_input_vectors(workers = 20, overwrite=False)
+        handler.retrofit_create_input_vectors(workers = 10, overwrite=False)
         handler.retrofit_output_vec(model_output_dir = model_output_dir)
         handler.retrofit_post_process(change_list, no_change_list)
         handler.logreg()

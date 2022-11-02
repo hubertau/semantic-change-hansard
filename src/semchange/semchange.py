@@ -680,7 +680,8 @@ class ParliamentDataHandler(object):
                 if workers > 1:
                     print(f'Beginning Process Pool Executor with {workers} workers')
                     with ProcessPoolExecutor(max_workers=workers) as executor:
-                        results = list(tqdm(executor.map(self._retrofit_one_batch, self._df_batch_generator(syn_df, 100)), total=len(self._df_batch_generator(syn_df,100))))
+                        # results = list(tqdm(executor.map(self._retrofit_one_batch, self._df_batch_generator(syn_df, 100)), total=len(self._df_batch_generator(syn_df,100))))
+                        results = executor.map(self._retrofit_one_batch, self._df_batch_generator(syn_df, 100))
 
                     # Combine results
                     index_to_key = []

@@ -76,9 +76,9 @@ class ParliamentDataHandler(object):
             tokens = self.unsplit_data.text.apply(self._tokenize_one_sentence)
             self.unsplit_data['tokenized'] = tokens
             self.unsplit_data.to_pickle(savepath)
-            print(f'Saved to {savepath}')
+            self.logger.info(f'Saved to {savepath}')
         elif (os.path.isfile(savepath) and not overwrite):
-            print(f'Loading in tokenized data from {savepath}')
+            self.logger.info(f'Loading in tokenized data from {savepath}')
             self.unsplit_data = pd.read_pickle(savepath)
 
     def remove_stopwords_from_tokenized(self):
@@ -468,7 +468,7 @@ class ParliamentDataHandler(object):
                 # self.retrofit_prep_df = pickle.load(f)
             # self.retrofit_prep_df = pd.read_hdf(retrofit_prep_savepath, self.parliament_name)
             self.retrofit_prep_df = pd.read_json(retrofit_prep_savepath, orient='split')
-            print(f'Retrofit prep loaded in from {retrofit_prep_savepath}, key = {self.parliament_name}')
+            self.logger.info(f'Retrofit prep loaded in from {retrofit_prep_savepath}, key = {self.parliament_name}')
 
     def retrofit_create_synonyms_party(self, data, word, factor):
         parties = list(data.party.value_counts().index)
@@ -570,12 +570,14 @@ class ParliamentDataHandler(object):
             self.logger.info('Retrofit Synonyms already created')
 
     def _retrofit_one_batch(self, syn_df_batch):
+
+        this_logger = logging.getLogger(__name__)
         index_to_key = []
         result = np.zeros(
             shape=(len(syn_df_batch)*len(self.words_of_interest), self.vector_size)
         )
 
-        self.logger.info(f'Processing index {syn_df_batch.index.start} to {syn_df_batch.index.stop}', flush=True)
+        this_logger.info(f'Processing index {syn_df_batch.index.start} to {syn_df_batch.index.stop}')
         index_count = 0
         # iterate over syn_df first because it takes time to load model.
         for row in syn_df_batch.itertuples():
@@ -593,7 +595,7 @@ class ParliamentDataHandler(object):
         assert index_count == len(index_to_key)
         result = result[~np.all(result == 0, axis=1)]
 
-        self.logger.info(f'COMPLETE index {syn_df_batch.index.start} to {syn_df_batch.index.stop}', flush=True)
+        this_logger.info(f'COMPLETE index {syn_df_batch.index.start} to {syn_df_batch.index.stop}')
 
         return index_to_key, result
 
@@ -675,12 +677,12 @@ class ParliamentDataHandler(object):
                     write=False
 
             if not write:
-                print('Data already exists in hdf5 file, not generating new data')
+                self.logger.info('Data already exists in hdf5 file, not generating new data')
             else:
                 if workers is None:
                     workers = os.cpu_count()-1
                 if workers > 1:
-                    print(f'Beginning Process Pool Executor with {workers} workers')
+                    self.logger.info(f'Beginning Process Pool Executor with {workers} workers')
                     with ProcessPoolExecutor(max_workers=workers) as executor:
                         # results = list(tqdm(executor.map(self._retrofit_one_batch, self._df_batch_generator(syn_df, 100)), total=len(self._df_batch_generator(syn_df,100))))
                         results = executor.map(self._retrofit_one_batch, self._df_batch_generator(syn_df, 100))
@@ -731,7 +733,7 @@ class ParliamentDataHandler(object):
                         #             f.write('\n')
             return True
         else:
-            print('Retrofit: input vector creation already complete.')
+            self.logger.info('Retrofit: input vector creation already complete.')
             return None
 
     def retrofit_read_word_vecs_hdf5(self, dataset_key=None):

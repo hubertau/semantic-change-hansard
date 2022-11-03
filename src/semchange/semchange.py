@@ -1413,6 +1413,10 @@ def main(
         )
         logger = logging.getLogger(__name__)
 
+    # Set so gensim doesn't go crazy with the logs
+    logging.getLogger('gensim.utils').setLevel(logging.DEBUG)
+    logging.getLogger('gensim.utils').propagate = False
+
     # Log all the parameters
     logger.info(f'PARAMS - file - {file}')
     logger.info(f'PARAMS - change - {change}')

@@ -20,7 +20,7 @@ python semchange.py \
   -f $DATA/data_semantic/01_raw/Corp_Congreso_V2.csv \
   -c $DATA/data_semantic/02_intermediate/change_911_es.txt \
   -nc $DATA/data_semantic/02_intermediate/nochange_es.txt \
-  --split_date 
+  --split_date "2001-09-11 23:59:59" \
   --retrofit_outdir $DATA/data_semantic/02_intermediate/ \
   --outdir $DATA/data_semantic/04_models/aligned_for_retrofit/es/ \
   --model_output_dir $DATA/data_semantic/05_model_outputs \

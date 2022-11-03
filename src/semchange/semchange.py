@@ -1347,6 +1347,7 @@ class ParliamentDataHandler(object):
 @click.option('--model_output_dir', required=True, help='Outputs after model generation, such as average vectors')
 @click.option('--model', required=False, default='whole')
 @click.option('--tokenized_outdir', required=False)
+@click.option('--split_date', required=False, default='2016-06-23 23:59:59')
 @click.option('--retrofit_outdir', required=False)
 @click.option('--log_level', required=False, default='INFO')
 @click.option('--log_dir', required=False)
@@ -1358,6 +1359,7 @@ def main(
         outdir,
         model_output_dir,
         tokenized_outdir,
+        split_date,
         retrofit_outdir,
         model,
         log_level,
@@ -1442,7 +1444,7 @@ def main(
     logger.info(f"FOR DEV PURPOSES ONLY TAKING DATA AFTER {dev_date}")
     handler.unsplit_data = handler.unsplit_data[handler.unsplit_data['date']>dev_date]
     handler.tokenize_data(tokenized_data_dir = tokenized_outdir, overwrite = False)
-    date_to_split = '2016-06-23 23:59:59'
+    date_to_split = split_date
     logger.info(f'SPLITTING BY DATE {date_to_split}')
     handler.split_by_date(date_to_split)
 

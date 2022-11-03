@@ -7,6 +7,7 @@ import csv
 import datetime
 import functools
 import multiprocessing
+import logging
 import os
 import pickle
 from concurrent.futures import ProcessPoolExecutor
@@ -47,6 +48,7 @@ class ParliamentDataHandler(object):
         self.split_complete = False
         self.data_filename = data_filename
         self.verbosity = verbosity
+        self.logger = logging.getLogger(__name__)
 
     @classmethod
     def from_csv(cls, unsplit_data, tokenized=False):
@@ -428,12 +430,12 @@ class ParliamentDataHandler(object):
             self.parliament_name = 'UNKNOWN PARLIAMENT'
 
         retrofit_prep_savepath = os.path.join(retrofit_outdir, f'retrofit_prep.json')
-        print(f'Retrofit Prep Path is {retrofit_prep_savepath}')
+        self.logger.info(f'Retrofit Prep Path is {retrofit_prep_savepath}')
 
-        print('Running retrofit prep')
+        self.logger.info('Running retrofit prep')
         if os.path.isfile(retrofit_prep_savepath) and overwrite or not os.path.isfile(retrofit_prep_savepath):
 
-            print('Splitting speeches')
+            self.logger.info('Splitting speeches')
 
             total_mpTimedf = self.split_speeches_df(by='speaker')
             # split_speeches = self.split_speeches(by='speaker')
@@ -456,11 +458,11 @@ class ParliamentDataHandler(object):
 
             self.retrofit_prep_df = total_mpTimedf
 
-            print(f'Retrofit prep saved to {retrofit_prep_savepath}')
+            self.logger.info(f'Retrofit prep saved to {retrofit_prep_savepath}')
 
         else:
 
-            print('Loading in prep from before...')
+            self.logger.info('Loading in prep from before...')
 
             # with open(retrofit_prep_savepath, 'rb') as f:
                 # self.retrofit_prep_df = pickle.load(f)
@@ -530,7 +532,7 @@ class ParliamentDataHandler(object):
         self.synPicklePath = os.path.join(self.retrofit_outdir, f'synonymsParty_{self.parliament_name}.pkl')
         self.synTextPath = os.path.join(self.retrofit_outdir, f'synonymsParty_{self.parliament_name}.txt')
 
-        print(f'Retrofit: Processing Synonyms...')
+        self.logger.info(f'Retrofit: Processing Synonyms...')
         if ((os.path.isfile(self.synPicklePath) and os.path.isfile(self.synTextPath)) and overwrite) or not (os.path.isfile(self.synPicklePath) and os.path.isfile(self.synTextPath)):
 
             allSynonyms=[]
@@ -565,7 +567,7 @@ class ParliamentDataHandler(object):
                         f.write(' ')
                     f.write('\n')
         else:
-            print('Retrofit Synonyms already created')
+            self.logger.info('Retrofit Synonyms already created')
 
     def _retrofit_one_batch(self, syn_df_batch):
         index_to_key = []
@@ -573,7 +575,7 @@ class ParliamentDataHandler(object):
             shape=(len(syn_df_batch)*len(self.words_of_interest), self.vector_size)
         )
 
-        print(f'Processing index {syn_df_batch.index.start} to {syn_df_batch.index.stop}', flush=True)
+        self.logger.info(f'Processing index {syn_df_batch.index.start} to {syn_df_batch.index.stop}', flush=True)
         index_count = 0
         # iterate over syn_df first because it takes time to load model.
         for row in syn_df_batch.itertuples():
@@ -591,7 +593,7 @@ class ParliamentDataHandler(object):
         assert index_count == len(index_to_key)
         result = result[~np.all(result == 0, axis=1)]
 
-        print(f'COMPLETE index {syn_df_batch.index.start} to {syn_df_batch.index.stop}', flush=True)
+        self.logger.info(f'COMPLETE index {syn_df_batch.index.start} to {syn_df_batch.index.stop}', flush=True)
 
         return index_to_key, result
 
@@ -601,7 +603,7 @@ class ParliamentDataHandler(object):
 
     def retrofit_create_input_vectors(self, workers = None, overwrite=False):
 
-        print('Retrofit: Create Input Vectors')
+        self.logger.info('Retrofit: Create Input Vectors')
         self.vectorFileName = os.path.join(self.retrofit_outdir,'vectorsPartyTime.hdf5')
         self.vectorIndexFileName = os.path.join(self.retrofit_outdir,f'vector_index_to_key_{self.parliament_name}.pkl')
 
@@ -764,10 +766,10 @@ class ParliamentDataHandler(object):
             ''' Enrich the word vectors using ppdb and print the enriched vectors '''
             retrofit.print_word_vecs(retrofit.retrofit(wordVecs, lexicon, numIter), self.retrofit_outfile)
         else:
-            print(f'Retrofit: Retrofit file already exists at {self.retrofit_outfile}')
+            self.logger.info(f'Retrofit: Retrofit file already exists at {self.retrofit_outfile}')
 
     def retrofit_post_process(self, change, no_change):
-        print('Retrofit: Post Processing')
+        self.logger.info('Retrofit: Post Processing')
 
         with open(self.retrofit_outfile) as f:
 
@@ -786,9 +788,9 @@ class ParliamentDataHandler(object):
                 else:
                     vec+=line
         vecs = [vec.replace('\n', '')for vec in vecs]
-        print(str(len(vecs))+' Retrofitted vectors obtained')
+        self.logger.info(str(len(vecs))+' Retrofitted vectors obtained')
 
-        print('Now extracting and mapping to synonym key')
+        self.logger.info('Now extracting and mapping to synonym key')
         dictKeyVector = {}
         count=0
         for i in range(len(vecs)):
@@ -800,13 +802,13 @@ class ParliamentDataHandler(object):
             vec=[i for i in vec if i!='']
 
             if(len(vec)!=300):
-                print('Vector with dimension<300', synKey,len(vec))
+                self.logger.info('Vector with dimension<300', synKey,len(vec))
                 count=count+1
             else:
                 vec =[float(v) for v in vec]
                 dictKeyVector[synKey]=vec
                 npVec = np.array(dictKeyVector[synKey])
-        print('Count of vectors with fewer dimensions that we will not consider',count)
+        self.logger.info('Count of vectors with fewer dimensions that we will not consider',count)
         dfRetrofitted = pd.DataFrame({'vectorKey':list(dictKeyVector.keys()), 'vectors':list(dictKeyVector.values())})
 
         # Filtering down words of interest as per those present in our vectors 
@@ -842,7 +844,7 @@ class ParliamentDataHandler(object):
                     cosSimilarity = self.cosine_similarity(avgVecT1, avgVecT2)
                     sims.append(cosSimilarity)
                 else:
-                    print('Word not found')
+                    self.logger.info('Word not found')
         self.cosine_similarity_df['Word']=words_of_interest
         self.cosine_similarity_df['Cosine_similarity']=sims
 
@@ -855,7 +857,7 @@ class ParliamentDataHandler(object):
         self.cosine_similarity_df.loc[self.cosine_similarity_df['Word'].isin(change), 'semanticDifference'] = 'change' 
         self.cosine_similarity_df.loc[self.cosine_similarity_df['Word'].isin(no_change), 'semanticDifference'] = 'no_change'
 
-        print('Retrofit: Post Process complete')
+        self.logger.info('Retrofit: Post Process complete')
 
 
     def model(self, outdir, by = 'vanilla', overwrite=False):
@@ -916,10 +918,10 @@ class ParliamentDataHandler(object):
             self.model_type = 'retrofit'
 
             # self.split_speeches_by_mp = self.split_speeches(by='mp')
-            print('GENERATE WORDTOVEC')
+            self.logger.info('Running retrofit modelling...')
             self.retrofit_model_paths = []
             new = False
-            for row in tqdm(self.retrofit_prep_df.itertuples()): 
+            for row in self.retrofit_prep_df.itertuples(): 
 
                 savepath = os.path.join(outdir, row.df_name)
                 self.retrofit_model_paths.append(savepath)
@@ -941,9 +943,8 @@ class ParliamentDataHandler(object):
                     # dictOfModels[dframe] = model
                     #model.save(os.path.join(models_folder, modelName))
 
-
             if new:
-                print('RETROFIT: Loading back in and running alignment')
+                self.logger.info('RETROFIT: New models detected. Loading back in and running alignment')
                 for ind, model_path in enumerate(self.retrofit_model_paths[:-1]):
 
                     model_current = gensim.models.Word2Vec.load(model_path)
@@ -953,14 +954,14 @@ class ParliamentDataHandler(object):
                     _ = self.smart_procrustes_align_gensim(model_current, model_next)
 
                     if np.sum(check-model_current.wv[model_current.wv.index_to_key[0]])>0:
-                        print('PLEASE CHECK ALIGNMENT PROCEDURE')
+                        self.logger.warning('PLEASE CHECK ALIGNMENT PROCEDURE')
                         return None
 
                     model_current.save(model_path)
                     model_next.save(self.retrofit_model_paths[ind+1])
-                print('ALIGNMENT COMPLETE')
+                self.logger.info('ALIGNMENT COMPLETE')
             else:
-                print('NO NEW MODELS GENERATED -> NO ALIGNMENT NECESSARY')
+                self.logger.info('NO NEW MODELS GENERATED -> NO ALIGNMENT NECESSARY')
 
     def cossim(self, word):
         sc = 1-spatial.distance.cosine(self.model1.wv[word], self.model2.wv[word])
@@ -1194,6 +1195,7 @@ class ParliamentDataHandler(object):
             self.words_of_interest = change + no_change
 
     def logreg(self):
+        self.logger.info('RUNNING LOGREG')
         if self.model_type == 'retrofit':
             X = self.cosine_similarity_df['Cosine_similarity'].values.reshape(-1,1)
             y = self.cosine_similarity_df['semanticDifference']
@@ -1213,8 +1215,8 @@ class ParliamentDataHandler(object):
 
         y_pred = logreg.predict(X_test)
 
-        print('Y value counts',y.value_counts(),'\n')
-        print('Y train value counts', y_train.value_counts())
+        self.logger.info('Y value counts',y.value_counts(),'\n')
+        self.logger.info('Y train value counts', y_train.value_counts())
 
         scoring = {'accuracy' : make_scorer(accuracy_score), 
                'precision' : make_scorer(precision_score,pos_label='change'),
@@ -1224,19 +1226,26 @@ class ParliamentDataHandler(object):
         scores = cross_validate(kf, X, y, cv=10, scoring=scoring,error_score='raise')
         accuracy, precision, recall, f1_score_res = [], [], [], []
 
-        print('Accuracy', scores['test_accuracy'].mean())
-        print('Precision', scores['test_precision'].mean())
-        print('Recall', scores['test_recall'].mean())
-        print('F1 Score', scores['test_f1_score'].mean())
+        self.logger.info('Accuracy', scores['test_accuracy'].mean())
+        self.logger.info('Precision', scores['test_precision'].mean())
+        self.logger.info('Recall', scores['test_recall'].mean())
+        self.logger.info('F1 Score', scores['test_f1_score'].mean())
 
         accuracy.append(scores['test_accuracy'].mean())
         precision.append(scores['test_precision'].mean())
         recall.append(scores['test_recall'].mean())
         f1_score_res.append(scores['test_f1_score'].mean())
 
-        scoresDict = {'Model':['Vanilla Model'],'Basis': ['Cosine Similarity'],'Accuracy':accuracy,'Precision':precision,'Recall':recall,'F1Score':f1_score}
+        scoresDict = {
+            'Model':['Vanilla Model'],
+            'Basis': ['Cosine Similarity'],
+            'Accuracy':accuracy,
+            'Precision':precision,
+            'Recall':recall,
+            'F1Score':f1_score
+        }
         scoresDf = pd.DataFrame(scoresDict)
-        scoresDf
+        self.logger.info(scoresDf)
 
     def nn_comparison(self):
         print('\n Running Nearest Neighbours Comparison')
@@ -1334,9 +1343,12 @@ class ParliamentDataHandler(object):
 @click.option('--no_change', '-nc', required=False, help='Text file containing words NOT expected to have changed', type=click.File())
 @click.option('--outdir', required=True, help='Output file directory')
 @click.option('--model_output_dir', required=True, help='Outputs after model generation, such as average vectors')
-@click.option('--model', required=False)
+@click.option('--model', required=False, default='whole')
 @click.option('--tokenized_outdir', required=False)
 @click.option('--retrofit_outdir', required=False)
+@click.option('--log_level', required=False, default='INFO')
+@click.option('--log_dir', required=False)
+@click.option('--log_handler_level', required=False, default='stream')
 def main(
         file,
         change,
@@ -1345,7 +1357,10 @@ def main(
         model_output_dir,
         tokenized_outdir,
         retrofit_outdir,
-        model='partytime'
+        model,
+        log_level,
+        log_dir,
+        log_handler_level,
     ):
     """Semantic Change.
 
@@ -1357,8 +1372,56 @@ def main(
         model_output_dir (_type_): _description_
         tokenized_outdir (_type_): _description_
         retrofit_outdir (_type_): _description_
-        model (str, optional): _description_. Defaults to 'partytime'.
+        model (str, optional): _description_.
     """
+
+    logging_dict = {
+            'NONE': None,
+            'CRITICAL': logging.CRITICAL,
+            'ERROR': logging.ERROR,
+            'WARNING': logging.WARNING,
+            'INFO': logging.INFO,
+            'DEBUG': logging.DEBUG
+    }
+
+    logging_level = logging_dict[log_level]
+
+    if logging_level is not None:
+
+        logging_fmt   = '[%(levelname)s] %(asctime)s - %(name)s - %(message)s'
+        # today_datetime = str(datetime.datetime.now().strftime('%Y_%m_%d_%H_%M_%S'))
+        if log_dir is not None:
+            assert os.path.isdir(log_dir)
+            logging_file  = os.path.join(log_dir, f'retrofit.log')
+
+        if log_handler_level == 'both':
+            handlers = [
+                logging.FileHandler(filename=logging_file,mode='a'),
+                logging.StreamHandler()
+            ]
+        elif log_handler_level == 'file':
+            handlers = [logging.FileHandler(filename=logging_file,mode='a')]
+        elif log_handler_level == 'stream':
+            handlers = [logging.StreamHandler()]
+        logging.basicConfig(
+            handlers=handlers,
+            format=logging_fmt,
+            level=logging_level,
+            datefmt='%m/%d/%Y %I:%M:%S %p'
+        )
+        logger = logging.getLogger(__name__)
+
+    # Log all the parameters
+    logger.info(f'PARAMS - file - {file}')
+    logger.info(f'PARAMS - change - {change}')
+    logger.info(f'PARAMS - no_change - {no_change}')
+    logger.info(f'PARAMS - outdir - {outdir}')
+    logger.info(f'PARAMS - model_output_dir - {model_output_dir}')
+    logger.info(f'PARAMS - tokenized_outdir - {tokenized_outdir}')
+    logger.info(f'PARAMS - retrofit_outdir - {retrofit_outdir}')
+    logger.info(f'PARAMS - model - {model}')
+
+    # process change lists
     change_list = []
     for i in change:
         change_list.append(i.strip('\n'))
@@ -1366,12 +1429,16 @@ def main(
     if no_change:
         for i in no_change:
             no_change_list.append(i.strip('\n'))
+
+    # instantiate parliament data handler
     handler = ParliamentDataHandler.from_csv(file, tokenized=False)
     dev_date = '1995-01-01'
-    print(f"FOR DEV PURPOSES ONLY TAKING DATA AFTER {dev_date}")
+    logger.info(f"FOR DEV PURPOSES ONLY TAKING DATA AFTER {dev_date}")
     handler.unsplit_data = handler.unsplit_data[handler.unsplit_data['date']>dev_date]
     handler.tokenize_data(tokenized_data_dir = tokenized_outdir, overwrite = False)
-    handler.split_by_date('2016-06-23 23:59:59')
+    date_to_split = '2016-06-23 23:59:59'
+    logger.info(f'SPLITTING BY DATE {date_to_split}')
+    handler.split_by_date(date_to_split)
 
     if model == 'vanilla':
         handler.model(outdir, by='vanilla', overwrite=True)
@@ -1389,7 +1456,7 @@ def main(
         handler.model(outdir, by='retrofit', overwrite=False)
         handler.woi(change_list, no_change_list)
         handler.retrofit_main_create_synonyms()
-        handler.retrofit_create_input_vectors(workers = 10, overwrite=False)
+        handler.retrofit_create_input_vectors(workers = 10, overwrite=True)
         handler.retrofit_output_vec(model_output_dir = model_output_dir)
         handler.retrofit_post_process(change_list, no_change_list)
         handler.logreg()

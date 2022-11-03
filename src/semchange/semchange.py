@@ -583,7 +583,7 @@ class ParliamentDataHandler(object):
         for row in syn_df_batch.itertuples():
             model = gensim.models.Word2Vec.load(row.full_model_path)
             if row.mpNamePartyInfo != 'dummy':
-                for word in tqdm(self.words_of_interest, leave=False):
+                for word in self.words_of_interest:
                     synonymString = f"{word}-{row.time}-{row.speaker.replace(' ','-')}-{row.mpNamePartyInfo}"
                     if word in model.wv.index_to_key:
                         result[index_count, :] = model.wv[word]

@@ -19,13 +19,15 @@ cd $HOME/2022-08a-Semantic_Change/src/semchange/
 lang=$1
 country=$2
 event="911"
+model="retrofit"
+split_date="2001-09-11 23:59:59"
 
 python semchange.py \
   -f $DATA/data_semantic/01_raw/${lang}_${country}.csv \
   -c $DATA/data_semantic/02_intermediate/change_911_${lang}.txt \
   -nc $DATA/data_semantic/02_intermediate/nochange_${lang}.txt \
-  --split_date "2001-09-11 23:59:59" \
-  --model retrofit \
+  --split_date ${split_date} \
+  --model ${model} \
   --retrofit_outdir $DATA/data_semantic/02_intermediate/${lang}_${country}_${event}/ \
   --outdir $DATA/data_semantic/04_models/retrofit/${lang}_${country}_${event}/ \
   --model_output_dir $DATA/data_semantic/05_model_outputs \

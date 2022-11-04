@@ -692,7 +692,10 @@ class ParliamentDataHandler(object):
                     total_result = np.array([])
                     for res in results:
                         index_to_key.extend(res[0])
-                        total_result = np.concatenate((total_result, res[1]), axis=0)
+                        if total_result.shape == (0,):
+                            total_result = np.concatenate((total_result.reshape(0,res[1].shape[1]), res[1]), axis=0)
+                        else:
+                            total_result = np.concatenate((total_result, res[1]), axis=0)
                 else:
                     index_to_key, total_result = self._retrofit_one_batch(syn_df)
 

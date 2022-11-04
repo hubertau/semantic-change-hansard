@@ -106,7 +106,7 @@ class ParliamentDataHandler(object):
             self.logger.info(f'PREPROCESS: Running preprocessing for retrofit.')
             self.retrofit_prep(retrofit_outdir=retrofit_outdir, overwrite = overwrite)
         elif self.model_type == 'speaker':
-            self.process_speaker(model_output_dir)
+            self.logger.info(f'PREPROCESS - SPEAKER - None required.')
         elif self.model_type == 'whole':
             self.logger.info(f'PREPROCESS - WHOLE - None required.')
 
@@ -1190,6 +1190,8 @@ class ParliamentDataHandler(object):
             self.retrofit_create_input_vectors(workers = workers, overwrite=overwrite)
             self.retrofit_output_vec(model_output_dir = model_output_dir)
             self.retrofit_post_process(change_list, no_change_list)
+        elif self.model_type == 'speaker':
+            self.process_speaker(model_output_dir)
 
     def logreg(self, model_output_dir):
         self.logger.info('RUNNING LOGREG')

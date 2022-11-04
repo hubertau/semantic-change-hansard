@@ -1132,9 +1132,7 @@ class ParliamentDataHandler(object):
         self.change = change
         self.no_change = no_change
 
-        if self.model_type == 'whole':
-
-            cosine_similarity_df = pd.DataFrame(([
+        self.cosine_similarity_df = pd.DataFrame(([
                 w,
                 self.cossim(w),
                 self.model1.wv.get_vecattr(w, "count"),
@@ -1148,10 +1146,12 @@ class ParliamentDataHandler(object):
                 )
             )
 
-            cosine_similarity_df.loc[:,'FrequencyRatio'] = cosine_similarity_df['Frequency_t1']/cosine_similarity_df['Frequency_t2']
-            cosine_similarity_df.loc[:,'TotalFrequency'] = cosine_similarity_df['Frequency_t1'] + cosine_similarity_df['Frequency_t2']
+        if self.model_type == 'whole':
 
-            cosine_similarity_df_sorted = cosine_similarity_df.sort_values(by='Cosine_similarity', ascending=True)
+            self.cosine_similarity_df.loc[:,'FrequencyRatio'] = self.cosine_similarity_df['Frequency_t1']/self.cosine_similarity_df['Frequency_t2']
+            self.cosine_similarity_df.loc[:,'TotalFrequency'] = self.cosine_similarity_df['Frequency_t1'] + self.cosine_similarity_df['Frequency_t2']
+
+            cosine_similarity_df_sorted = self.cosine_similarity_df.sort_values(by='Cosine_similarity', ascending=True)
 
             self.words_of_interest = cosine_similarity_df_sorted[cosine_similarity_df_sorted['Word'].isin(change+no_change)]
 

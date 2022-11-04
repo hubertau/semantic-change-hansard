@@ -1132,7 +1132,9 @@ class ParliamentDataHandler(object):
         self.change = change
         self.no_change = no_change
 
-        self.cosine_similarity_df = pd.DataFrame(([
+        if self.model_type == 'whole':
+
+            self.cosine_similarity_df = pd.DataFrame(([
                 w,
                 self.cossim(w),
                 self.model1.wv.get_vecattr(w, "count"),
@@ -1145,8 +1147,6 @@ class ParliamentDataHandler(object):
                     "Frequency_t2"
                 )
             )
-
-        if self.model_type == 'whole':
 
             self.cosine_similarity_df.loc[:,'FrequencyRatio'] = self.cosine_similarity_df['Frequency_t1']/self.cosine_similarity_df['Frequency_t2']
             self.cosine_similarity_df.loc[:,'TotalFrequency'] = self.cosine_similarity_df['Frequency_t1'] + self.cosine_similarity_df['Frequency_t2']

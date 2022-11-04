@@ -29,6 +29,6 @@ python semchange.py \
   --split_date ${split_date} \
   --model ${model} \
   --retrofit_outdir $DATA/data_semantic/02_intermediate/${lang}_${country}_${event}/ \
-  --outdir $DATA/data_semantic/04_models/retrofit/${lang}_${country}_${event}/ \
-  --model_output_dir $DATA/data_semantic/05_model_outputs \
+  --outdir $DATA/data_semantic/04_models/${model}/${lang}_${country}_${event}/ \
+  --model_output_dir $DATA/data_semantic/05_model_outputs/${model}/${lang}_${country}_${event}/ \
   --tokenized_outdir $DATA/data_semantic/02_intermediate/${lang}_${country}_${event}/

@@ -98,9 +98,15 @@ class ParliamentDataHandler(object):
         unique = list(df[by].unique())
         return unique
 
-    def preprocess(self):
+    def preprocess(self, model = None, retrofit_outdir=None, overwrite=None):
         """TODO: Use this function to unify the retrofit prep, the tokenising, splitting of speeches, etc. so this is not duplicated in subsequent processes"""
-        pass
+        assert model in ['retrofit', 'retro', 'whole', 'speaker']
+        self.model_type = model
+        if self.model_type in ['retrofit', 'retro']:
+            self.logger.info(f'PREPROCESS: Running preprocessing for retrofit.')
+            self.retrofit_prep(retrofit_outdir=retrofit_outdir, overwrite = overwrite)
+        else:
+            self.logger.info(f'PREPROCESS: None required because {self.model} model selected.')
 
     def intersection_align_gensim(self, m1, m2, words=None):
         """
@@ -871,6 +877,7 @@ class ParliamentDataHandler(object):
         self.outdir = outdir
 
         if by == 'whole':
+            self.logger.info('RUNNING WHOLE PARLIAMENT MODEL')
 
             self.model_type = 'whole'
 
@@ -880,12 +887,12 @@ class ParliamentDataHandler(object):
             if os.path.isfile(savepath_t1) and not overwrite:
                 self.model1 = gensim.models.Word2Vec.load(savepath_t1)
                 self.model2 = gensim.models.Word2Vec.load(savepath_t2)
-                print('whole models loaded in ')
+                self.logger.info('whole models loaded in ')
             else:
                 # create model for time 1
-                print('creating model for time 1')
+                self.logger.info('creating model for time 1')
                 self.model1 = gensim.models.Word2Vec(self.data_t1['tokenized'])
-                print('creating model for time 2')
+                self.logger.info('creating model for time 2')
                 self.model2 = gensim.models.Word2Vec(self.data_t2['tokenized'])
 
                 self.model1.save(savepath_t1)
@@ -1150,6 +1157,9 @@ class ParliamentDataHandler(object):
 
     def woi(self, change, no_change):
 
+        self.change = change
+        self.no_change = no_change
+
         if self.model_type == 'whole':
 
             cosine_similarity_df = pd.DataFrame(([
@@ -1195,9 +1205,19 @@ class ParliamentDataHandler(object):
 
             return self.words_of_interest
 
-        elif self.model_type == 'retrofit':
+        elif self.model_type in ['retrofit', 'retro']:
 
             self.words_of_interest = change + no_change
+
+    def postprocess(self, change_list, no_change_list, model_output_dir, workers=10, overwrite=False)->None:
+        self.logger.info("POSTPROCESS: BEGIN")
+        self.woi(change_list, no_change_list)
+
+        if self.model_type in ['retrofit', 'retro']:
+            self.retrofit_main_create_synonyms()
+            self.retrofit_create_input_vectors(workers = 10, overwrite=True)
+            self.retrofit_output_vec(model_output_dir = model_output_dir)
+            self.retrofit_post_process(change_list, no_change_list)
 
     def logreg(self):
         self.logger.info('RUNNING LOGREG')
@@ -1451,26 +1471,45 @@ def main(
     logger.info(f'SPLITTING BY DATE {date_to_split}')
     handler.split_by_date(date_to_split)
 
-    if model == 'whole':
-        handler.model(outdir, by='whole', overwrite=True)
-        handler.woi(change_list, no_change_list)
-        handler.logreg()
-        handler.nn_comparison()
-    elif model == 'speaker':
-        handler.model(outdir, by='speaker', overwrite=False)
-        handler.process_speaker(model_output_dir)
-        handler.woi(change_list, no_change_list)
-        handler.logreg()
-        handler.nn_comparison()
-    elif model == 'retro' or model == 'retrofit':
-        handler.retrofit_prep(retrofit_outdir=retrofit_outdir, overwrite = False)
-        handler.model(outdir, by='retrofit', overwrite=False)
-        handler.woi(change_list, no_change_list)
-        handler.retrofit_main_create_synonyms()
-        handler.retrofit_create_input_vectors(workers = 10, overwrite=True)
-        handler.retrofit_output_vec(model_output_dir = model_output_dir)
-        handler.retrofit_post_process(change_list, no_change_list)
-        handler.logreg()
+    # if model == 'whole':
+    #     handler.model(outdir, by='whole', overwrite=True)
+    #     handler.woi(change_list, no_change_list)
+    #     handler.logreg()
+    #     handler.nn_comparison()
+    # elif model == 'speaker':
+    #     handler.model(outdir, by='speaker', overwrite=False)
+    #     handler.process_speaker(model_output_dir)
+    #     handler.woi(change_list, no_change_list)
+    #     handler.logreg()
+    #     handler.nn_comparison()
+    # elif model == 'retro' or model == 'retrofit':
+    #     handler.retrofit_prep(retrofit_outdir=retrofit_outdir, overwrite = False)
+    #     handler.model(outdir, by='retrofit', overwrite=False)
+    #     handler.woi(change_list, no_change_list)
+    #     handler.retrofit_main_create_synonyms()
+    #     handler.retrofit_create_input_vectors(workers = 10, overwrite=True)
+    #     handler.retrofit_output_vec(model_output_dir = model_output_dir)
+    #     handler.retrofit_post_process(change_list, no_change_list)
+    #     handler.logreg()
+
+    # unified
+    handler.preprocess(
+        model = model,
+        retrofit_outdir=retrofit_outdir,
+        overwrite=False
+    )
+    handler.model(
+        outdir,
+        overwrite=False
+    )
+    handler.postprocess(
+        change_list,
+        no_change_list,
+        model_output_dir,
+        workers = 10,
+        overwrite=False
+    )
+    handler.logreg()
 
 if __name__ == '__main__':
     main()

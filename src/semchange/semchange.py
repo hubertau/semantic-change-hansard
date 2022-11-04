@@ -951,12 +951,12 @@ class ParliamentDataHandler(object):
 
         self.logger.info('Retrofit: Post Process complete')
 
-    def model(self, outdir, by = 'whole', overwrite=False):
+    def model(self, outdir, overwrite=False):
         """Function to generate the actual Word2Vec models.
         """
         self.outdir = outdir
 
-        if by == 'whole':
+        if self.model_type == 'whole':
             self.logger.info('MODELLING - WHOLE')
 
             savepath_t1 = os.path.join(outdir, 'whole_model_t1.model')
@@ -976,7 +976,7 @@ class ParliamentDataHandler(object):
                 self.model1.save(savepath_t1)
                 self.model2.save(savepath_t2)
 
-        if by == 'speaker':
+        if self.model_type == 'speaker':
 
             """
             With the speaker model, we train word embeddings for each MP and split into two time groups as well, t1 and t2.
@@ -1000,7 +1000,7 @@ class ParliamentDataHandler(object):
                         if self.verbosity > 0:
                             self.logger.info(df.head())
 
-        if by == 'retrofit':
+        if self.model_type == 'retrofit':
             # create aligned models for retrofit.
 
             self.logger.info('MODELLING - RETROFIT')

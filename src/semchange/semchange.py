@@ -81,34 +81,133 @@ class ParliamentDataHandler(object):
             self.logger.info(f'Loading in tokenized data from {savepath}')
             self.unsplit_data = pd.read_pickle(savepath)
 
-    def remove_stopwords_from_tokenized(self):
-        #TODO: FIX THIS FUNCTION
-        self.unsplit_data.loc[:,'tokenized'] = self.unsplit_data['tokenized'].apply(len)
+    # def remove_stopwords_from_tokenized(self):
+    #     #TODO: FIX THIS FUNCTION
+    #     self.unsplit_data.loc[:,'tokenized'] = self.unsplit_data['tokenized'].apply(len)
 
     def split_by_date(self, date):
         self.data_t1 = self.unsplit_data[self.unsplit_data['date']<= date]
         self.data_t2 = self.unsplit_data[self.unsplit_data['date']> date]
         self.split_complete = True
 
-    def obtain_unique(self, df, by='party'):
-        if by == 'party':
-            pass
-        elif by == 'mp':
-            by = 'speaker'
-        unique = list(df[by].unique())
-        return unique
+    # def obtain_unique(self, df, by='party'):
+    #     if by == 'party':
+    #         pass
+    #     elif by == 'mp':
+    #         by = 'speaker'
+    #     unique = list(df[by].unique())
+    #     return unique
 
-    def preprocess(self, model = None, retrofit_outdir=None, overwrite=None):
+    def preprocess(self, model = None, model_output_dir = None, retrofit_outdir=None, overwrite=None):
         """TODO: Use this function to unify the retrofit prep, the tokenising, splitting of speeches, etc. so this is not duplicated in subsequent processes"""
         assert model in ['retrofit', 'retro', 'whole', 'speaker']
         self.model_type = model
         if self.model_type in ['retrofit', 'retro']:
             self.logger.info(f'PREPROCESS: Running preprocessing for retrofit.')
             self.retrofit_prep(retrofit_outdir=retrofit_outdir, overwrite = overwrite)
-        else:
-            self.logger.info(f'PREPROCESS: None required because {self.model} model selected.')
+        elif self.model_type == 'speaker':
+            self.process_speaker(model_output_dir)
+        elif self.model_type == 'whole':
+            self.logger.info(f'PREPROCESS - WHOLE - None required.')
 
-    def intersection_align_gensim(self, m1, m2, words=None):
+    def process_speaker(self, model_output_dir, min_vocab_size=10000, overwrite=False):
+        """Function to load in speaker models, filter by vocab size if necessary.
+        """
+        # collect keys of models that are over the threshold
+        self.valid_split_speeches_by_mp = []
+        first = True
+        self.dictOfModels = {
+            't1': [],
+            't2': []
+        }
+        total_words = set()
+        for model_savepath in self.speaker_saved_models:
+            model = gensim.models.Word2Vec.load(model_savepath)
+            if 't1' in model_savepath:
+                self.dictOfModels['t1'].append(model)
+            else:
+                self.dictOfModels['t2'].append(model)
+            # if len(model.wv.index_to_key) < min_vocab_size:
+                # continue
+            # else:
+            self.valid_split_speeches_by_mp.append(model_savepath)
+            if first:
+                total_words = set(model.wv.index_to_key)
+                # print(total_words)
+                first = False
+            else:
+                total_words.update(model.wv.index_to_key)
+        self.logger.info(f'PREPROCESS - SPEAKER - Total words: {len(total_words)}')
+
+        # print, for informational purposes, the number of models that are over the threshold
+        self.logger.info(f'PREPROCESS - SPEAKER - Number of valid models: {len(self.valid_split_speeches_by_mp)}')
+
+        avg_vec_savepath_t1 = os.path.join(model_output_dir,'average_vecs_t1.bin')
+        avg_vec_savepath_t2 = os.path.join(model_output_dir,'average_vecs_t2.bin')
+
+        if ((os.path.isfile(avg_vec_savepath_t1) or os.path.isfile(avg_vec_savepath_t2)) and overwrite) or not (os.path.isfile(avg_vec_savepath_t1) and os.path.isfile(avg_vec_savepath_t2)):
+            average_vecs = {
+                't1': {},
+                't2': {}
+            }
+            self.cosine_similarity_df = pd.DataFrame(columns = ('Word', 'Cosine_similarity'))
+            self.logger.info(f'PREPROCESS - SPEAKER - CALCULATING AVERAGE VECTORS')
+            for word in tqdm(total_words):
+                if self.verbosity > 0:
+                    self.logger.info(f'PREPROCESS - SPEAKER - getting average vector for {word}')
+                avgVecT1 = self.computeAvgVec(word, time='t1')
+                avgVecT2 = self.computeAvgVec(word, time='t2')
+
+                if(np.sum(avgVecT1)==0 or np.sum(avgVecT2)==0):
+                    if self.verbosity > 0:
+                        print(str(word) + ' Word not found')
+                    continue
+                else:
+                    # build results of average vec to save.
+                    average_vecs['t1'][word] = avgVecT1
+                    average_vecs['t2'][word] = avgVecT2
+
+                    # Cos similarity between averages
+                    cosSimilarity = self.cosine_similarity(avgVecT1, avgVecT2)
+                    self.cosine_similarity_df = self.cosine_similarity_df.append(
+                        {'Word': word, 'cossim': cosSimilarity},
+                        ignore_index=True
+                    )
+
+            self._save_word2vec_format(
+                fname = avg_vec_savepath_t1,
+                vocab = average_vecs['t1'],
+                vector_size = average_vecs['t1'][list(average_vecs['t1'].keys())[0]].shape[0]
+            )
+            self.logger.info(f'PREPROCESS - SPEAKER - Average vectors for t1 saved to {avg_vec_savepath_t1}')
+            self._save_word2vec_format(
+                fname = avg_vec_savepath_t2,
+                vocab = average_vecs['t2'],
+                vector_size = average_vecs['t2'][list(average_vecs['t2'].keys())[0]].shape[0]
+            )
+            self.logger.info(f'PREPROCESS - SPEAKER - Average vectors for t2 saved to {avg_vec_savepath_t2}')
+
+            self.model1 = gensim.models.KeyedVectors.load_word2vec_format(avg_vec_savepath_t1, binary=True)
+            self.model2 = gensim.models.KeyedVectors.load_word2vec_format(avg_vec_savepath_t2, binary=True)
+
+        else:
+            self.model1 = gensim.models.KeyedVectors.load_word2vec_format(avg_vec_savepath_t1, binary=True)
+            self.logger.info(f'PREPROCESS - SPEAKER - Average vectors for t1 loaded in from {avg_vec_savepath_t1}')
+            self.model2 = gensim.models.KeyedVectors.load_word2vec_format(avg_vec_savepath_t2, binary=True)
+            self.logger.info(f'PREPROCESS - SPEAKER - Average vectors for t2 loaded in from {avg_vec_savepath_t2}')
+
+            self.cosine_similarity_df = pd.DataFrame(columns = ('Word', 'Cosine_similarity'))
+            for word in self.model1.index_to_key:
+                avgVecT1 = self.model1[word]
+                avgVecT2 = self.model2[word]
+
+                cosSimilarity = self.cosine_similarity(avgVecT1, avgVecT2)
+                self.cosine_similarity_df = self.cosine_similarity_df.append(
+                    {'Word': word, 'Cosine_similarity': cosSimilarity},
+                    ignore_index=True
+                )
+
+    def _intersection_align_gensim(self, m1, m2, words=None):
         """
         Intersect two gensim word2vec models, m1 and m2.
         Only the shared vocabulary between them is kept.
@@ -164,7 +263,7 @@ class ParliamentDataHandler(object):
         return (m1,m2)
 
     # Function to align two spaces with orthogunal procrustes
-    def smart_procrustes_align_gensim(self, base_embed, other_embed, words=None):
+    def _smart_procrustes_align_gensim(self, base_embed, other_embed, words=None):
         """
         Original script: https://gist.github.com/quadrismegistus/09a93e219a6ffc4f216fb85235535faf
         Procrustes align two gensim word2vec models (to allow for comparison between same word across models).
@@ -179,7 +278,7 @@ class ParliamentDataHandler(object):
         print(4)
 
         # make sure vocabulary and indices are aligned
-        in_base_embed, in_other_embed = self.intersection_align_gensim(base_embed, other_embed, words=words)
+        in_base_embed, in_other_embed = self._intersection_align_gensim(base_embed, other_embed, words=words)
 
         in_base_embed.wv.fill_norms(force=True)
         in_other_embed.wv.fill_norms(force=True)
@@ -383,9 +482,6 @@ class ParliamentDataHandler(object):
             dictSpeechesByParty[k].iat[0,stInd]=lemList[ind]
 
         dictOfModels = {}
-        #shutil.rmtree('./models-by-mp-and-time')
-        #os.makedirs('./models-by-party-and-time')
-        #models_folder = './models-by-party-and-time'
         count = 1
 
         print('GENERATE WORDTOVEC')
@@ -413,7 +509,7 @@ class ParliamentDataHandler(object):
 
         modelsToAlign = list(dictOfModels.values())
         for i in range(0,len(modelsToAlign)-1):
-            functools.reduce(self.smart_procrustes_align_gensim, modelsToAlign)
+            functools.reduce(self._smart_procrustes_align_gensim, modelsToAlign)
 
         for ind in range(0,len(listDfsKeep)-1):
             if(len(dictOfModels[listDfsKeep[ind]].wv.index_to_key)!=len(dictOfModels[listDfsKeep[ind+1]].wv.index_to_key)):
@@ -444,21 +540,9 @@ class ParliamentDataHandler(object):
             self.logger.info('Splitting speeches')
 
             total_mpTimedf = self.split_speeches_df(by='speaker')
-            # split_speeches = self.split_speeches(by='speaker')
-            # all_split_dfs = list(split_speeches.values())
-            # total_mpTimedf = all_split_dfs[0]
-            # for v in all_split_dfs[1:]:
-            #     total_mpTimedf = total_mpTimedf.append(v)
-            # print('totalmpTimedf created')
             total_mpTimedf['lemmas_delist'] = [','.join(map(str, l)) for l in total_mpTimedf['Lemmas']]
-            # total_mpTimedf['lemmas_delist'] = total_mpTimedf['Lemmas'].apply(lambda l: ','.join(map(str, l)))
 
             total_mpTimedf['LengthLemmas'] = total_mpTimedf.Lemmas.map(len)
-
-            # with open(retrofit_prep_savepath, 'wb') as f:
-                # pickle.dump(total_mpTimedf, f)
-
-            # total_mpTimedf.to_hdf(retrofit_prep_savepath, key=f'{self.parliament_name}')
 
             total_mpTimedf.to_json(retrofit_prep_savepath, orient='split', index=False)
 
@@ -470,9 +554,6 @@ class ParliamentDataHandler(object):
 
             self.logger.info('Loading in prep from before...')
 
-            # with open(retrofit_prep_savepath, 'rb') as f:
-                # self.retrofit_prep_df = pickle.load(f)
-            # self.retrofit_prep_df = pd.read_hdf(retrofit_prep_savepath, self.parliament_name)
             self.retrofit_prep_df = pd.read_json(retrofit_prep_savepath, orient='split')
             self.logger.info(f'Retrofit prep loaded in from {retrofit_prep_savepath}, key = {self.parliament_name}')
 
@@ -772,7 +853,7 @@ class ParliamentDataHandler(object):
             wordVecs = self.retrofit_read_word_vecs_hdf5()
             lexicon = retrofit.read_lexicon(self.synTextPath)
             numIter = int(10)
-            self.retrofit_outfile = os.path.join(model_output_dir, 'retrofit','retrofit_out.txt')
+            self.retrofit_outfile = os.path.join(model_output_dir,'retrofit_out.txt')
 
             ''' Enrich the word vectors using ppdb and print the enriched vectors '''
             retrofit.print_word_vecs(retrofit.retrofit(wordVecs, lexicon, numIter), self.retrofit_outfile)
@@ -870,16 +951,13 @@ class ParliamentDataHandler(object):
 
         self.logger.info('Retrofit: Post Process complete')
 
-
     def model(self, outdir, by = 'whole', overwrite=False):
         """Function to generate the actual Word2Vec models.
         """
         self.outdir = outdir
 
         if by == 'whole':
-            self.logger.info('RUNNING WHOLE PARLIAMENT MODEL')
-
-            self.model_type = 'whole'
+            self.logger.info('MODELLING - WHOLE')
 
             savepath_t1 = os.path.join(outdir, 'whole_model_t1.model')
             savepath_t2 = os.path.join(outdir, 'whole_model_t2.model')
@@ -887,12 +965,12 @@ class ParliamentDataHandler(object):
             if os.path.isfile(savepath_t1) and not overwrite:
                 self.model1 = gensim.models.Word2Vec.load(savepath_t1)
                 self.model2 = gensim.models.Word2Vec.load(savepath_t2)
-                self.logger.info('whole models loaded in ')
+                self.logger.info('MODELLING - whole models loaded in ')
             else:
                 # create model for time 1
-                self.logger.info('creating model for time 1')
+                self.logger.info('MODELLING - creating model for time 1')
                 self.model1 = gensim.models.Word2Vec(self.data_t1['tokenized'])
-                self.logger.info('creating model for time 2')
+                self.logger.info('MODELLING - creating model for time 2')
                 self.model2 = gensim.models.Word2Vec(self.data_t2['tokenized'])
 
                 self.model1.save(savepath_t1)
@@ -904,33 +982,28 @@ class ParliamentDataHandler(object):
             With the speaker model, we train word embeddings for each MP and split into two time groups as well, t1 and t2.
             """
 
-            self.model_type = 'speaker'
-
             self.split_speeches_by_mp = self.split_speeches(by='mp')
             self.speaker_saved_models = []
             for df_name, df in self.split_speeches_by_mp.items():
                 model_savepath = os.path.join(outdir, f'speaker_{df_name}.model')
                 if (os.path.isfile(model_savepath) and not overwrite):
                     if self.verbosity > 0:
-                        print('Model exists and no overwrite flag set.')
+                        self.logger.info('MODELLING - SPEAKER - Model exists and no overwrite flag set.')
                     self.speaker_saved_models.append(model_savepath)
                 else:
                     try:
                         model = gensim.models.Word2Vec(df['Lemmas'])
                         model.save(model_savepath)
-                        print(f'Saved model to {model_savepath}.')
+                        self.logger.info(f'MODELLING - SPEAKER - Saved model to {model_savepath}.')
                         self.speaker_saved_models.append(model_savepath)
                     except:
                         if self.verbosity > 0:
-                            print(df.head())
+                            self.logger.info(df.head())
 
         if by == 'retrofit':
             # create aligned models for retrofit.
 
-            self.model_type = 'retrofit'
-
-            # self.split_speeches_by_mp = self.split_speeches(by='mp')
-            self.logger.info('Running retrofit modelling...')
+            self.logger.info('MODELLING - RETROFIT')
             self.retrofit_model_paths = []
             new = False
             for row in self.retrofit_prep_df.itertuples(): 
@@ -956,24 +1029,24 @@ class ParliamentDataHandler(object):
                     #model.save(os.path.join(models_folder, modelName))
 
             if new:
-                self.logger.info('RETROFIT: New models detected. Loading back in and running alignment')
+                self.logger.info('MODELLING - RETROFIT - New models detected. Loading back in and running alignment')
                 for ind, model_path in enumerate(self.retrofit_model_paths[:-1]):
 
                     model_current = gensim.models.Word2Vec.load(model_path)
                     check = np.array(model_current.wv[model_current.wv.index_to_key[0]])
                     model_next    = gensim.models.Word2Vec.load(self.retrofit_model_paths[ind+1])
 
-                    _ = self.smart_procrustes_align_gensim(model_current, model_next)
+                    _ = self._smart_procrustes_align_gensim(model_current, model_next)
 
                     if np.sum(check-model_current.wv[model_current.wv.index_to_key[0]])>0:
-                        self.logger.warning('PLEASE CHECK ALIGNMENT PROCEDURE')
+                        self.logger.warning('MODELLING - RETROFIT - PLEASE CHECK ALIGNMENT PROCEDURE')
                         return None
 
                     model_current.save(model_path)
                     model_next.save(self.retrofit_model_paths[ind+1])
-                self.logger.info('ALIGNMENT COMPLETE')
+                self.logger.info('MODELLING - RETROFIT - ALIGNMENT COMPLETE')
             else:
-                self.logger.info('NO NEW MODELS GENERATED -> NO ALIGNMENT NECESSARY')
+                self.logger.info('MODELLING - RETROFIT - NO NEW MODELS GENERATED -> NO ALIGNMENT NECESSARY')
 
     def cossim(self, word):
         sc = 1-spatial.distance.cosine(self.model1.wv[word], self.model2.wv[word])
@@ -1053,107 +1126,6 @@ class ParliamentDataHandler(object):
                 else:
                     fout.write(gensim.utils.to_utf8("%s %s\n" % (word, ' '.join(repr(val) for val in row))))
 
-    def process_speaker(self, model_output_dir, min_vocab_size=10000, overwrite=False):
-        """Function to load in speaker models, filter by vocab size if necessary.
-        """
-
-        # collect keys of models that are over the threshold
-        self.valid_split_speeches_by_mp = []
-        first = True
-        self.dictOfModels = {
-            't1': [],
-            't2': []
-        }
-        total_words = set()
-        for model_savepath in self.speaker_saved_models:
-            model = gensim.models.Word2Vec.load(model_savepath)
-            if 't1' in model_savepath:
-                self.dictOfModels['t1'].append(model)
-            else:
-                self.dictOfModels['t2'].append(model)
-            # if len(model.wv.index_to_key) < min_vocab_size:
-                # continue
-            # else:
-            self.valid_split_speeches_by_mp.append(model_savepath)
-            if first:
-                total_words = set(model.wv.index_to_key)
-                # print(total_words)
-                first = False
-            else:
-                total_words.update(model.wv.index_to_key)
-        print(f'Total words: {len(total_words)}')
-
-        # print, for informational purposes, the number of models that are over the threshold
-        print(f'Number of valid models: {len(self.valid_split_speeches_by_mp)}')
-
-        # no words of interest supplied. Then we do all the words that overlap
-        # total_words = set()
-        # for df_name, df in self.split_speeches_by_mp.items():
-
-        avg_vec_savepath_t1 = os.path.join(model_output_dir, 'speaker', 'average_vecs_t1.bin')
-        avg_vec_savepath_t2 = os.path.join(model_output_dir, 'speaker', 'average_vecs_t2.bin')
-
-        if ((os.path.isfile(avg_vec_savepath_t1) or os.path.isfile(avg_vec_savepath_t2)) and overwrite) or not (os.path.isfile(avg_vec_savepath_t1) and os.path.isfile(avg_vec_savepath_t2)):
-            average_vecs = {
-                't1': {},
-                't2': {}
-            }
-            self.cosine_similarity_df = pd.DataFrame(columns = ('Word', 'Cosine_similarity'))
-            print(f'speaker: CALCULATING AVERAGE VECTORS')
-            for word in tqdm(total_words):
-                if self.verbosity > 0:
-                    print(f'speaker MODEL: getting average vector for {word}')
-                avgVecT1 = self.computeAvgVec(word, time='t1')
-                avgVecT2 = self.computeAvgVec(word, time='t2')
-
-                if(np.sum(avgVecT1)==0 or np.sum(avgVecT2)==0):
-                    if self.verbosity > 0:
-                        print(str(word) + ' Word not found')
-                    continue
-                else:
-                    # build results of average vec to save.
-                    average_vecs['t1'][word] = avgVecT1
-                    average_vecs['t2'][word] = avgVecT2
-
-                    # Cos similarity between averages
-                    cosSimilarity = self.cosine_similarity(avgVecT1, avgVecT2)
-                    self.cosine_similarity_df = self.cosine_similarity_df.append(
-                        {'Word': word, 'cossim': cosSimilarity},
-                        ignore_index=True
-                    )
-
-            self._save_word2vec_format(
-                fname = avg_vec_savepath_t1,
-                vocab = average_vecs['t1'],
-                vector_size = average_vecs['t1'][list(average_vecs['t1'].keys())[0]].shape[0]
-            )
-            print(f'Average vectors for t1 saved to {avg_vec_savepath_t1}')
-            self._save_word2vec_format(
-                fname = avg_vec_savepath_t2,
-                vocab = average_vecs['t2'],
-                vector_size = average_vecs['t2'][list(average_vecs['t2'].keys())[0]].shape[0]
-            )
-            print(f'Average vectors for t2 saved to {avg_vec_savepath_t2}')
-
-            self.model1 = gensim.models.KeyedVectors.load_word2vec_format(avg_vec_savepath_t1, binary=True)
-            self.model2 = gensim.models.KeyedVectors.load_word2vec_format(avg_vec_savepath_t2, binary=True)
-
-        else:
-            self.model1 = gensim.models.KeyedVectors.load_word2vec_format(avg_vec_savepath_t1, binary=True)
-            print(f'Average vectors for t1 loaded in from {avg_vec_savepath_t1}')
-            self.model2 = gensim.models.KeyedVectors.load_word2vec_format(avg_vec_savepath_t2, binary=True)
-            print(f'Average vectors for t2 loaded in from {avg_vec_savepath_t2}')
-
-            self.cosine_similarity_df = pd.DataFrame(columns = ('Word', 'Cosine_similarity'))
-            for word in self.model1.index_to_key:
-                avgVecT1 = self.model1[word]
-                avgVecT2 = self.model2[word]
-
-                cosSimilarity = self.cosine_similarity(avgVecT1, avgVecT2)
-                self.cosine_similarity_df = self.cosine_similarity_df.append(
-                    {'Word': word, 'Cosine_similarity': cosSimilarity},
-                    ignore_index=True
-                )
 
     def woi(self, change, no_change):
 
@@ -1215,11 +1187,11 @@ class ParliamentDataHandler(object):
 
         if self.model_type in ['retrofit', 'retro']:
             self.retrofit_main_create_synonyms()
-            self.retrofit_create_input_vectors(workers = 10, overwrite=True)
+            self.retrofit_create_input_vectors(workers = workers, overwrite=overwrite)
             self.retrofit_output_vec(model_output_dir = model_output_dir)
             self.retrofit_post_process(change_list, no_change_list)
 
-    def logreg(self):
+    def logreg(self, model_output_dir):
         self.logger.info('RUNNING LOGREG')
         if self.model_type == 'retrofit':
             X = self.cosine_similarity_df['Cosine_similarity'].values.reshape(-1,1)
@@ -1271,6 +1243,8 @@ class ParliamentDataHandler(object):
         }
         scoresDf = pd.DataFrame(scoresDict)
         self.logger.info(scoresDf)
+        #save result
+        scoresDf.to_csv(os.path.join(model_output_dir, 'logreg.csv'))
 
     def nn_comparison(self):
         print('\n Running Nearest Neighbours Comparison')
@@ -1495,6 +1469,7 @@ def main(
     # unified
     handler.preprocess(
         model = model,
+        model_output_dir = model_output_dir,
         retrofit_outdir=retrofit_outdir,
         overwrite=False
     )
@@ -1509,7 +1484,7 @@ def main(
         workers = 10,
         overwrite=False
     )
-    handler.logreg()
+    handler.logreg(model_output_dir)
 
 if __name__ == '__main__':
     main()

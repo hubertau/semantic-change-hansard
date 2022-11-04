@@ -865,22 +865,22 @@ class ParliamentDataHandler(object):
         self.logger.info('Retrofit: Post Process complete')
 
 
-    def model(self, outdir, by = 'vanilla', overwrite=False):
+    def model(self, outdir, by = 'whole', overwrite=False):
         """Function to generate the actual Word2Vec models.
         """
         self.outdir = outdir
 
-        if by == 'vanilla':
+        if by == 'whole':
 
-            self.model_type = 'vanilla'
+            self.model_type = 'whole'
 
-            savepath_t1 = os.path.join(outdir, 'vanilla_model_t1.model')
-            savepath_t2 = os.path.join(outdir, 'vanilla_model_t2.model')
+            savepath_t1 = os.path.join(outdir, 'whole_model_t1.model')
+            savepath_t2 = os.path.join(outdir, 'whole_model_t2.model')
 
             if os.path.isfile(savepath_t1) and not overwrite:
                 self.model1 = gensim.models.Word2Vec.load(savepath_t1)
                 self.model2 = gensim.models.Word2Vec.load(savepath_t2)
-                print('Vanilla models loaded in ')
+                print('whole models loaded in ')
             else:
                 # create model for time 1
                 print('creating model for time 1')
@@ -891,28 +891,28 @@ class ParliamentDataHandler(object):
                 self.model1.save(savepath_t1)
                 self.model2.save(savepath_t2)
 
-        if by == 'baseline':
+        if by == 'speaker':
 
             """
-            With the baseline model, we train word embeddings for each MP and split into two time groups as well, t1 and t2.
+            With the speaker model, we train word embeddings for each MP and split into two time groups as well, t1 and t2.
             """
 
-            self.model_type = 'baseline'
+            self.model_type = 'speaker'
 
             self.split_speeches_by_mp = self.split_speeches(by='mp')
-            self.baseline_saved_models = []
+            self.speaker_saved_models = []
             for df_name, df in self.split_speeches_by_mp.items():
-                model_savepath = os.path.join(outdir, f'baseline_{df_name}.model')
+                model_savepath = os.path.join(outdir, f'speaker_{df_name}.model')
                 if (os.path.isfile(model_savepath) and not overwrite):
                     if self.verbosity > 0:
                         print('Model exists and no overwrite flag set.')
-                    self.baseline_saved_models.append(model_savepath)
+                    self.speaker_saved_models.append(model_savepath)
                 else:
                     try:
                         model = gensim.models.Word2Vec(df['Lemmas'])
                         model.save(model_savepath)
                         print(f'Saved model to {model_savepath}.')
-                        self.baseline_saved_models.append(model_savepath)
+                        self.speaker_saved_models.append(model_savepath)
                     except:
                         if self.verbosity > 0:
                             print(df.head())
@@ -1046,8 +1046,8 @@ class ParliamentDataHandler(object):
                 else:
                     fout.write(gensim.utils.to_utf8("%s %s\n" % (word, ' '.join(repr(val) for val in row))))
 
-    def process_baseline(self, model_output_dir, min_vocab_size=10000, overwrite=False):
-        """Function to load in baseline models, filter by vocab size if necessary.
+    def process_speaker(self, model_output_dir, min_vocab_size=10000, overwrite=False):
+        """Function to load in speaker models, filter by vocab size if necessary.
         """
 
         # collect keys of models that are over the threshold
@@ -1058,7 +1058,7 @@ class ParliamentDataHandler(object):
             't2': []
         }
         total_words = set()
-        for model_savepath in self.baseline_saved_models:
+        for model_savepath in self.speaker_saved_models:
             model = gensim.models.Word2Vec.load(model_savepath)
             if 't1' in model_savepath:
                 self.dictOfModels['t1'].append(model)
@@ -1083,8 +1083,8 @@ class ParliamentDataHandler(object):
         # total_words = set()
         # for df_name, df in self.split_speeches_by_mp.items():
 
-        avg_vec_savepath_t1 = os.path.join(model_output_dir, 'baseline', 'average_vecs_t1.bin')
-        avg_vec_savepath_t2 = os.path.join(model_output_dir, 'baseline', 'average_vecs_t2.bin')
+        avg_vec_savepath_t1 = os.path.join(model_output_dir, 'speaker', 'average_vecs_t1.bin')
+        avg_vec_savepath_t2 = os.path.join(model_output_dir, 'speaker', 'average_vecs_t2.bin')
 
         if ((os.path.isfile(avg_vec_savepath_t1) or os.path.isfile(avg_vec_savepath_t2)) and overwrite) or not (os.path.isfile(avg_vec_savepath_t1) and os.path.isfile(avg_vec_savepath_t2)):
             average_vecs = {
@@ -1092,10 +1092,10 @@ class ParliamentDataHandler(object):
                 't2': {}
             }
             self.cosine_similarity_df = pd.DataFrame(columns = ('Word', 'Cosine_similarity'))
-            print(f'BASELINE: CALCULATING AVERAGE VECTORS')
+            print(f'speaker: CALCULATING AVERAGE VECTORS')
             for word in tqdm(total_words):
                 if self.verbosity > 0:
-                    print(f'BASELINE MODEL: getting average vector for {word}')
+                    print(f'speaker MODEL: getting average vector for {word}')
                 avgVecT1 = self.computeAvgVec(word, time='t1')
                 avgVecT2 = self.computeAvgVec(word, time='t2')
 
@@ -1150,7 +1150,7 @@ class ParliamentDataHandler(object):
 
     def woi(self, change, no_change):
 
-        if self.model_type == 'vanilla':
+        if self.model_type == 'whole':
 
             cosine_similarity_df = pd.DataFrame(([
                 w,
@@ -1182,7 +1182,7 @@ class ParliamentDataHandler(object):
 
             return self.words_of_interest, self.change_cossim, self.no_change_cossim
 
-        elif self.model_type == 'baseline':
+        elif self.model_type == 'speaker':
 
             self.words_of_interest = self.cosine_similarity_df[self.cosine_similarity_df['Word'].isin(change+no_change)]
 
@@ -1242,7 +1242,7 @@ class ParliamentDataHandler(object):
         f1_score_res.append(scores['test_f1_score'].mean())
 
         scoresDict = {
-            'Model':['Vanilla Model'],
+            'Model':['whole Model'],
             'Basis': ['Cosine Similarity'],
             'Accuracy':accuracy,
             'Precision':precision,
@@ -1259,7 +1259,7 @@ class ParliamentDataHandler(object):
 
         for word in self.words_of_interest['Word'].to_list():
 
-            if self.model_type == 'baseline':
+            if self.model_type == 'speaker':
                 x = self.model1.similar_by_word(word,10)
                 y = self.model2.similar_by_word(word,10)
             else:
@@ -1327,7 +1327,7 @@ class ParliamentDataHandler(object):
         recall.append(scores['test_recall'].mean())
         f1_score_res.append(scores['test_f1_score'].mean())
 
-        scoresDict = {'Model':['Vanilla Model'],'Basis': ['Cosine Similarity'],'Accuracy':accuracy,'Precision':precision,'Recall':recall,'F1Score':f1_score}
+        scoresDict = {'Model':['whole Model'],'Basis': ['Cosine Similarity'],'Accuracy':accuracy,'Precision':precision,'Recall':recall,'F1Score':f1_score}
         scoresDf = pd.DataFrame(scoresDict)
         scoresDf
 
@@ -1443,22 +1443,22 @@ def main(
 
     # instantiate parliament data handler
     handler = ParliamentDataHandler.from_csv(file, tokenized=False)
-    dev_date = '1995-01-01'
-    logger.info(f"FOR DEV PURPOSES ONLY TAKING DATA AFTER {dev_date}")
-    handler.unsplit_data = handler.unsplit_data[handler.unsplit_data['date']>dev_date]
+    # dev_date = '1995-01-01'
+    # logger.info(f"FOR DEV PURPOSES ONLY TAKING DATA AFTER {dev_date}")
+    # handler.unsplit_data = handler.unsplit_data[handler.unsplit_data['date']>dev_date]
     handler.tokenize_data(tokenized_data_dir = tokenized_outdir, overwrite = False)
     date_to_split = split_date
     logger.info(f'SPLITTING BY DATE {date_to_split}')
     handler.split_by_date(date_to_split)
 
-    if model == 'vanilla':
-        handler.model(outdir, by='vanilla', overwrite=True)
+    if model == 'whole':
+        handler.model(outdir, by='whole', overwrite=True)
         handler.woi(change_list, no_change_list)
         handler.logreg()
         handler.nn_comparison()
-    elif model == 'baseline':
-        handler.model(outdir, by='baseline', overwrite=False)
-        handler.process_baseline(model_output_dir)
+    elif model == 'speaker':
+        handler.model(outdir, by='speaker', overwrite=False)
+        handler.process_speaker(model_output_dir)
         handler.woi(change_list, no_change_list)
         handler.logreg()
         handler.nn_comparison()
@@ -1471,10 +1471,6 @@ def main(
         handler.retrofit_output_vec(model_output_dir = model_output_dir)
         handler.retrofit_post_process(change_list, no_change_list)
         handler.logreg()
-    else:
-        handler.split_speeches(by='party')
-        handler.stem_and_lemmatize(change_list, outdir)
-
 
 if __name__ == '__main__':
     main()

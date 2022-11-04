@@ -1183,6 +1183,9 @@ class ParliamentDataHandler(object):
 
     def postprocess(self, change_list, no_change_list, model_output_dir, workers=10, overwrite=False)->None:
         self.logger.info("POSTPROCESS: BEGIN")
+        if self.model_type == 'speaker':
+            self.process_speaker(model_output_dir)
+
         self.woi(change_list, no_change_list)
 
         if self.model_type in ['retrofit', 'retro']:
@@ -1190,8 +1193,6 @@ class ParliamentDataHandler(object):
             self.retrofit_create_input_vectors(workers = workers, overwrite=overwrite)
             self.retrofit_output_vec(model_output_dir = model_output_dir)
             self.retrofit_post_process(change_list, no_change_list)
-        elif self.model_type == 'speaker':
-            self.process_speaker(model_output_dir)
 
     def logreg(self, model_output_dir):
         self.logger.info('RUNNING LOGREG')
@@ -1417,6 +1418,8 @@ def main(
     # Set so gensim doesn't go crazy with the logs
     logging.getLogger('gensim.utils').setLevel(logging.DEBUG)
     logging.getLogger('gensim.utils').propagate = False
+    logging.getLogger('gensim.models.word2vec').setLevel(logging.DEBUG)
+    logging.getLogger('gensim.models.word2vec').propagate = False
 
     # Log all the parameters
     logger.info(f'PARAMS - file - {file}')

@@ -1225,9 +1225,11 @@ class ParliamentDataHandler(object):
         if self.model_type == 'retrofit':
             X = self.cosine_similarity_df['Cosine_similarity'].values.reshape(-1,1)
             y = self.cosine_similarity_df['semanticDifference']
+            self.logger.info(self.cosine_similarity_df)
         else:
             X = self.words_of_interest['Cosine_similarity'].values.reshape(-1,1)
             y = self.words_of_interest['semanticDifference']
+            self.logger.info(self.words_of_interest)
 
         undersample = RandomUnderSampler(sampling_strategy=1.0)
 

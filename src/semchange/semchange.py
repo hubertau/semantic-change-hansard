@@ -1251,15 +1251,15 @@ class ParliamentDataHandler(object):
 
         y_pred = logreg.predict(X_test)
 
-        self.logger.info('Y value counts',y.value_counts(),'\n')
-        self.logger.info('Y train value counts', y_train.value_counts())
+        self.logger.info(f'Y value counts: {y.value_counts()}')
+        self.logger.info(f'Y train value counts: {y_train.value_counts()}')
 
         scoring = {'accuracy' : make_scorer(accuracy_score), 
                'precision' : make_scorer(precision_score,pos_label='change'),
                'recall' : make_scorer(recall_score,pos_label='change'), 
                'f1_score' : make_scorer(f1_score,pos_label='change')}
 
-        scores = cross_validate(kf, X, y, cv=10, scoring=scoring,error_score='raise')
+        scores = cross_validate(kf, X, y, cv=min(10, len(y)), scoring=scoring,error_score='raise')
         accuracy, precision, recall, f1_score_res = [], [], [], []
 
         self.logger.info('Accuracy', scores['test_accuracy'].mean())
@@ -1344,21 +1344,21 @@ class ParliamentDataHandler(object):
 
         y_pred = logreg.predict(X_test)
 
-        print('Y value counts',y.value_counts(),'\n')
-        print('Y train value counts', y_train.value_counts())
+        self.logger.info(f'Y value counts: {y.value_counts()}')
+        self.logger.info(f'Y train value counts: {y_train.value_counts()}')
 
         scoring = {'accuracy' : make_scorer(accuracy_score), 
                'precision' : make_scorer(precision_score,pos_label='change'),
                'recall' : make_scorer(recall_score,pos_label='change'), 
                'f1_score' : make_scorer(f1_score,pos_label='change')}
 
-        scores = cross_validate(kf, X, y, cv=10, scoring=scoring,error_score='raise')
+        scores = cross_validate(kf, X, y, cv=min(10, len(y)), scoring=scoring,error_score='raise')
         accuracy, precision, recall, f1_score_res = [], [], [], []
 
-        print('Accuracy', scores['test_accuracy'].mean())
-        print('Precision', scores['test_precision'].mean())
-        print('Recall', scores['test_recall'].mean())
-        print('F1 Score', scores['test_f1_score'].mean())
+        self.logger.info('Accuracy', scores['test_accuracy'].mean())
+        self.logger.info('Precision', scores['test_precision'].mean())
+        self.logger.info('Recall', scores['test_recall'].mean())
+        self.logger.info('F1 Score', scores['test_f1_score'].mean())
 
         accuracy.append(scores['test_accuracy'].mean())
         precision.append(scores['test_precision'].mean())

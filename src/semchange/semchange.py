@@ -231,16 +231,16 @@ class ParliamentDataHandler(object):
             -- you can find the index of any word on the .index2word list: model.index2word.index(word) => 2
         The .vocab dictionary is also updated for each model, preserving the count but updating the index.
         """
-        print(1)
+        # print(1)
         # Get the vocab for each model
         vocab_m1 = set(m1.wv.index_to_key)
         vocab_m2 = set(m2.wv.index_to_key)
-        print(2)
+        # print(2)
 
         # Find the common vocabulary
         common_vocab = vocab_m1 & vocab_m2
         if words: common_vocab &= set(words)
-        print(3)
+        # print(3)
 
         # If no alignment necessary because vocab is identical...
         if not vocab_m1 - common_vocab and not vocab_m2 - common_vocab:
@@ -269,9 +269,9 @@ class ParliamentDataHandler(object):
             m.wv.key_to_index = new_key_to_index
             m.wv.index_to_key = new_index_to_key
 
-            print(len(m.wv.key_to_index), len(m.wv.vectors))
-            if(len(m.wv.key_to_index)==135):
-                print('Common vocab is', common_vocab)
+            # print(len(m.wv.key_to_index), len(m.wv.vectors))
+            # if(len(m.wv.key_to_index)==135):
+                # print('Common vocab is', common_vocab)
 
         return (m1,m2)
 
@@ -288,7 +288,7 @@ class ParliamentDataHandler(object):
         Return other_embed.
         If `words` is set, intersect the two models' vocabulary with the vocabulary in words (see `intersection_align_gensim` documentation).
         """
-        print(4)
+        # print(4)
 
         # make sure vocabulary and indices are aligned
         in_base_embed, in_other_embed = self._intersection_align_gensim(base_embed, other_embed, words=words)
@@ -296,7 +296,7 @@ class ParliamentDataHandler(object):
         in_base_embed.wv.fill_norms(force=True)
         in_other_embed.wv.fill_norms(force=True)
 
-        print(5)
+        # print(5)
 
         # get the (normalized) embedding matrices
         base_vecs = in_base_embed.wv.get_normed_vectors()
@@ -972,8 +972,8 @@ class ParliamentDataHandler(object):
                 vector_size = dictKeyVector[t][list(dictKeyVector[t].keys())[0]].shape[0]
             )
 
-        self.model1 = gensim.models.KeyedVectors.load(os.path.join(model_output_dir, f'retrofit_vecs_t1.bin'))
-        self.model2 = gensim.models.KeyedVectors.load(os.path.join(model_output_dir, f'retrofit_vecs_t2.bin'))
+        self.model1 = gensim.models.KeyedVectors.load_word2vec_format(os.path.join(model_output_dir, f'retrofit_vecs_t1.bin'), binary=True)
+        self.model2 = gensim.models.KeyedVectors.load_word2vec_format(os.path.join(model_output_dir, f'retrofit_vecs_t2.bin'), binary=True)
 
         self.logger.info('Retrofit: Post Process complete')
 
@@ -1236,7 +1236,9 @@ class ParliamentDataHandler(object):
         X_over, y_over = undersample.fit_resample(X, y)
         X, y = X_over, y_over
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=2)
+        CHANGE_PROPORTION = (y == 'change')/len(y)
+        stratification = np.random.choice(['change','nochange'],size=(len(y),), p=[CHANGE_PROPORTION, 1-CHANGE_PROPORTION])
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=2, stratify=stratification)
 
         logreg = LogisticRegression()
         kf = logreg.fit(X_train, y_train)
@@ -1327,7 +1329,9 @@ class ParliamentDataHandler(object):
         X=X_over
         y=y_over
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=2)
+        CHANGE_PROPORTION = (y == 'change')/len(y)
+        stratification = np.random.choice(['change','nochange'],size=(len(y),), p=[CHANGE_PROPORTION, 1-CHANGE_PROPORTION])
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=2, stratify=stratification)
 
         logreg = LogisticRegression()
         kf = logreg.fit(X_train, y_train)

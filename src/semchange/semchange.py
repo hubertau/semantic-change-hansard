@@ -1021,6 +1021,8 @@ class ParliamentDataHandler(object):
                         model = gensim.models.Word2Vec(df['Lemmas'])
                         model.save(model_savepath)
                         self.logger.info(f'MODELLING - SPEAKER - Saved model to {model_savepath}.')
+                        if len(model.wv.index_to_key) < min_vocab_size:
+                            continue
                         self.speaker_saved_models.append(model_savepath)
                     except:
                         if self.verbosity > 0:
@@ -1045,6 +1047,10 @@ class ParliamentDataHandler(object):
                         window = 5,
                         sg = 1
                     )
+
+                    # Skip if below minimum size
+                    if len(model.wv.index_to_key) < min_vocab_size:
+                        continue
 
                     # Previous: Also saving model in a dict and exporting
                     # Updated 22/10/22: save as you go along for RAM reasons. Also just better

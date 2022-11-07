@@ -869,7 +869,7 @@ class ParliamentDataHandler(object):
         else:
             self.logger.info(f'Retrofit: Retrofit file already exists at {self.retrofit_outfile}')
 
-    def retrofit_post_process(self, change, no_change):
+    def retrofit_post_process(self, change, no_change, model_output_dir):
         self.logger.info('Retrofit: Post Processing')
 
         with open(self.retrofit_outfile) as f:
@@ -931,21 +931,21 @@ class ParliamentDataHandler(object):
         # Compute average of word in T1 and in T2 and store average vectors and cosine difference   
         for word in words_of_interest:
 
-                #Provide a list of keys to average computation model for it to
-                #compute average vector amongst these models
-                wordT1Keys = [k for k in t1Keys if k.split('-')[0]==word]
-                wordT2Keys = [k for k in t2Keys if k.split('-')[0]==word]
+            #Provide a list of keys to average computation model for it to
+            # #compute average vector amongst these models
+            # wordT1Keys = [k for k in t1Keys if k.split('-')[0]==word]
+            # wordT2Keys = [k for k in t2Keys if k.split('-')[0]==word]
 
-                #Since here the key itself contains the word we're not simply sending T1 keys but sending word-wise key
-                avgVecT1 = self.computeAvgVec(word, time = 't1', dictKeyVector = dictKeyVector)
-                avgVecT2 = self.computeAvgVec(word, time = 't2', dictKeyVector = dictKeyVector)
+            #Since here the key itself contains the word we're not simply sending T1 keys but sending word-wise key
+            avgVecT1 = self.computeAvgVec(word, time = 't1', dictKeyVector = dictKeyVector)
+            avgVecT2 = self.computeAvgVec(word, time = 't2', dictKeyVector = dictKeyVector)
 
-                if(avgVecT1.shape == avgVecT2.shape):
-                    # Cos similarity between averages
-                    cosSimilarity = self.cosine_similarity(avgVecT1, avgVecT2)
-                    sims.append(cosSimilarity)
-                else:
-                    self.logger.info('Word not found')
+            if(avgVecT1.shape == avgVecT2.shape):
+                # Cos similarity between averages
+                cosSimilarity = self.cosine_similarity(avgVecT1, avgVecT2)
+                sims.append(cosSimilarity)
+            else:
+                self.logger.info('Word not found')
         self.cosine_similarity_df['Word']=words_of_interest
         self.cosine_similarity_df['Cosine_similarity']=sims
 
@@ -957,6 +957,19 @@ class ParliamentDataHandler(object):
         self.cosine_similarity_df['semanticDifference']=['default' for i in range(self.cosine_similarity_df.shape[0])]
         self.cosine_similarity_df.loc[self.cosine_similarity_df['Word'].isin(change), 'semanticDifference'] = 'change' 
         self.cosine_similarity_df.loc[self.cosine_similarity_df['Word'].isin(no_change), 'semanticDifference'] = 'no_change'
+
+        self.retrofit_dictkeyvector = dictKeyVector
+
+        # Save into word2vec format for nn comparison
+        for t in ['t1','t2']:
+            self._save_word2vec_format(
+                fname = os.path.join(model_output_dir, f'retrofit_vecs_{t}.bin'),
+                vocab = dictKeyVector[t],
+                vector_size = dictKeyVector[t][list(dictKeyVector[t].keys())[0]].shape[0]
+            )
+
+        self.model1 = gensim.models.KeyedVectors.load(os.path.join(model_output_dir, f'retrofit_vecs_t1.bin'))
+        self.model2 = gensim.models.KeyedVectors.load(os.path.join(model_output_dir, f'retrofit_vecs_t2.bin'))
 
         self.logger.info('Retrofit: Post Process complete')
 
@@ -1201,7 +1214,7 @@ class ParliamentDataHandler(object):
             self.retrofit_main_create_synonyms()
             self.retrofit_create_input_vectors(workers = workers, overwrite=overwrite)
             self.retrofit_output_vec(model_output_dir = model_output_dir)
-            self.retrofit_post_process(change_list, no_change_list)
+            self.retrofit_post_process(change_list, no_change_list, model_output_dir)
 
     def logreg(self, model_output_dir):
         self.logger.info('RUNNING LOGREG')
@@ -1263,12 +1276,15 @@ class ParliamentDataHandler(object):
         neighboursInT1 = []
         neighboursInT2 = []
 
+        if self.model_type in ['retrofit', 'retro']:
+            self.words_of_interest = self.cosine_similarity_df
+
         for word in self.words_of_interest['Word'].to_list():
 
-            if self.model_type == 'speaker':
+            if self.model_type in ['speaker', 'retrofit', 'retro']:
                 x = self.model1.similar_by_word(word,10)
                 y = self.model2.similar_by_word(word,10)
-            else:
+            elif self.model_type == 'whole':
                 x = self.model1.wv.similar_by_word(word,10) 
                 y = self.model2.wv.similar_by_word(word,10)
 

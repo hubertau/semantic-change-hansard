@@ -1502,7 +1502,7 @@ def main(
         overwrite=overwrite_postprocess
     )
     handler.logreg(model_output_dir)
-    handler.nn_comparison()
+    handler.nn_comparison(model_output_dir)
 
 if __name__ == '__main__':
     main()

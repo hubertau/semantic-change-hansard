@@ -180,10 +180,12 @@ class ParliamentDataHandler(object):
 
                     # Cos similarity between averages
                     cosSimilarity = self.cosine_similarity(avgVecT1, avgVecT2)
-                    self.cosine_similarity_df = self.cosine_similarity_df.append(
-                        {'Word': word, 'cossim': cosSimilarity},
-                        ignore_index=True
-                    )
+                    insert_row = {
+                        "Word": word,
+                        "Cosine_similarity": cosSimilarity
+                    }
+
+                    self.cosine_similarity_df = pd.concat([self.cosine_similarity_df, pd.DataFrame([insert_row])])
 
             self._save_word2vec_format(
                 fname = avg_vec_savepath_t1,
@@ -1175,9 +1177,9 @@ class ParliamentDataHandler(object):
             self.cosine_similarity_df.loc[:,'FrequencyRatio'] = self.cosine_similarity_df['Frequency_t1']/self.cosine_similarity_df['Frequency_t2']
             self.cosine_similarity_df.loc[:,'TotalFrequency'] = self.cosine_similarity_df['Frequency_t1'] + self.cosine_similarity_df['Frequency_t2']
 
-            cosine_similarity_df_sorted = self.cosine_similarity_df.sort_values(by='Cosine_similarity', ascending=True)
+            self.cosine_similarity_df.sort_values(by='Cosine_similarity', ascending=True, inplace=True)
 
-            self.words_of_interest = cosine_similarity_df_sorted[cosine_similarity_df_sorted['Word'].isin(change+no_change)]
+            self.words_of_interest = self.cosine_similarity_df[self.cosine_similarity_df['Word'].isin(change+no_change)]
 
             self.words_of_interest.loc[self.words_of_interest['Word'].isin(change), 'semanticDifference'] = 'change'
             self.words_of_interest.loc[self.words_of_interest['Word'].isin(no_change), 'semanticDifference'] = 'no_change'

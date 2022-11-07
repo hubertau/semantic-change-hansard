@@ -411,7 +411,7 @@ class ParliamentDataHandler(object):
 
                 tempDf = pd.DataFrame([[split, tempList, party]],columns=[by, 'Lemmas', 'party'])
                 tempDf['df_name'] = dfName
-                splitspeeches = splitspeeches.append(tempDf)
+                splitspeeches = pd.concat([splitspeeches, tempDf], axis=0)
                 # splitspeeches[dfName]= tempDf
                 # splitspeeches[dfName]['df_name'] = dfName
 

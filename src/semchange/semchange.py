@@ -1226,7 +1226,7 @@ class ParliamentDataHandler(object):
             self.retrofit_output_vec(model_output_dir = model_output_dir)
             self.retrofit_post_process(change_list, no_change_list, model_output_dir)
 
-    def logreg(self, model_output_dir):
+    def logreg(self, model_output_dir, undersample = True):
         self.logger.info('RUNNING LOGREG')
         if self.model_type == 'retrofit':
             X = self.cosine_similarity_df['Cosine_similarity'].values.reshape(-1,1)
@@ -1237,10 +1237,11 @@ class ParliamentDataHandler(object):
             y = self.words_of_interest['semanticDifference']
             self.logger.info(self.words_of_interest)
 
-        undersample = RandomUnderSampler(sampling_strategy=1.0)
+        if undersample:
+            undersample = RandomUnderSampler(sampling_strategy=1.0)
 
-        X_over, y_over = undersample.fit_resample(X, y)
-        X, y = X_over, y_over
+            X_over, y_over = undersample.fit_resample(X, y)
+            X, y = X_over, y_over
         self.logger.info(f'Y value counts: {y.value_counts()}')
         self.logger.info(f'Y train value counts: {y_train.value_counts()}')
 
@@ -1285,7 +1286,7 @@ class ParliamentDataHandler(object):
         #save result
         scoresDf.to_csv(os.path.join(model_output_dir, 'logreg.csv'))
 
-    def nn_comparison(self, model_output_dir):
+    def nn_comparison(self, model_output_dir, undersample = True):
         print('\n Running Nearest Neighbours Comparison')
         neighboursInT1 = []
         neighboursInT2 = []
@@ -1329,11 +1330,12 @@ class ParliamentDataHandler(object):
         X = self.words_of_interest['overlappingNeighbours'].values.reshape(-1,1)
         y = self.words_of_interest['semanticDifference']
 
-        undersample = RandomUnderSampler(sampling_strategy=1.0)
+        if undersample:
+            undersample = RandomUnderSampler(sampling_strategy=1.0)
 
-        X_over, y_over = undersample.fit_resample(X, y)
-        X=X_over
-        y=y_over
+            X_over, y_over = undersample.fit_resample(X, y)
+            X=X_over
+            y=y_over
 
         CHANGE_PROPORTION = np.sum(y == 'change')/len(y)
         stratification = np.random.choice(['change','no_change'],size=(len(y),), p=[CHANGE_PROPORTION, 1-CHANGE_PROPORTION])
@@ -1393,6 +1395,7 @@ class ParliamentDataHandler(object):
 @click.option('--split_date', required=False, default='2016-06-23 23:59:59')
 @click.option('--split_range', required=False)
 @click.option('--retrofit_outdir', required=False)
+@click.option('--undersample', required=False, is_flag = True)
 @click.option('--log_level', required=False, default='INFO')
 @click.option('--log_dir', required=False)
 @click.option('--log_handler_level', required=False, default='stream')
@@ -1411,6 +1414,7 @@ def main(
         split_range,
         retrofit_outdir,
         model,
+        undersample,
         log_level,
         log_dir,
         log_handler_level,
@@ -1521,8 +1525,8 @@ def main(
         workers = 10,
         overwrite=overwrite_postprocess
     )
-    handler.logreg(model_output_dir)
-    handler.nn_comparison(model_output_dir)
+    handler.logreg(model_output_dir, undersample)
+    handler.nn_comparison(model_output_dir, undersample)
 
 if __name__ == '__main__':
     main()

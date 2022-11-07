@@ -1258,7 +1258,7 @@ class ParliamentDataHandler(object):
         #save result
         scoresDf.to_csv(os.path.join(model_output_dir, 'logreg.csv'))
 
-    def nn_comparison(self):
+    def nn_comparison(self, model_output_dir):
         print('\n Running Nearest Neighbours Comparison')
         neighboursInT1 = []
         neighboursInT2 = []
@@ -1344,7 +1344,8 @@ class ParliamentDataHandler(object):
 
         summary_neighbours, results_neighbours = rp.ttest(group1= self.words_of_interest['overlappingNeighbours'][self.words_of_interest['semanticDifference'] == 'change'], group1_name= "change",
                                     group2= self.words_of_interest['overlappingNeighbours'][self.words_of_interest['semanticDifference'] == 'no_change'], group2_name= "no_change")
-        print(summary_neighbours)
+        # print(summary_neighbours)
+        summary_neighbours.to_csv(os.path.join(model_output_dir, 'nn_comparison.csv'))
 
 
 
@@ -1485,6 +1486,7 @@ def main(
         overwrite=overwrite_postprocess
     )
     handler.logreg(model_output_dir)
+    handler.nn_comparison()
 
 if __name__ == '__main__':
     main()

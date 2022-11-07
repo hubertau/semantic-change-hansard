@@ -1185,7 +1185,7 @@ class ParliamentDataHandler(object):
 
             self.cosine_similarity_df.sort_values(by='Cosine_similarity', ascending=True, inplace=True)
 
-            self.words_of_interest = self.cosine_similarity_df[self.cosine_similarity_df['Word'].isin(change+no_change)]
+            self.words_of_interest = self.cosine_similarity_df[self.cosine_similarity_df['Word'].isin(change+no_change)].copy()
 
             self.words_of_interest.loc[self.words_of_interest['Word'].isin(change), 'semanticDifference'] = 'change'
             self.words_of_interest.loc[self.words_of_interest['Word'].isin(no_change), 'semanticDifference'] = 'no_change'
@@ -1241,9 +1241,11 @@ class ParliamentDataHandler(object):
 
         X_over, y_over = undersample.fit_resample(X, y)
         X, y = X_over, y_over
+        self.logger.info(f'Y value counts: {y.value_counts()}')
+        self.logger.info(f'Y train value counts: {y_train.value_counts()}')
 
         CHANGE_PROPORTION = np.sum(y == 'change')/len(y)
-        stratification = np.random.choice(['change','nochange'],size=(len(y),), p=[CHANGE_PROPORTION, 1-CHANGE_PROPORTION])
+        stratification = np.random.choice(['change','no_change'],size=(len(y),), p=[CHANGE_PROPORTION, 1-CHANGE_PROPORTION])
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=2, stratify=stratification)
 
         logreg = LogisticRegression()
@@ -1251,8 +1253,6 @@ class ParliamentDataHandler(object):
 
         y_pred = logreg.predict(X_test)
 
-        self.logger.info(f'Y value counts: {y.value_counts()}')
-        self.logger.info(f'Y train value counts: {y_train.value_counts()}')
 
         scoring = {'accuracy' : make_scorer(accuracy_score), 
                'precision' : make_scorer(precision_score,pos_label='change'),
@@ -1336,7 +1336,7 @@ class ParliamentDataHandler(object):
         y=y_over
 
         CHANGE_PROPORTION = np.sum(y == 'change')/len(y)
-        stratification = np.random.choice(['change','nochange'],size=(len(y),), p=[CHANGE_PROPORTION, 1-CHANGE_PROPORTION])
+        stratification = np.random.choice(['change','no_change'],size=(len(y),), p=[CHANGE_PROPORTION, 1-CHANGE_PROPORTION])
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=2, stratify=stratification)
 
         logreg = LogisticRegression()

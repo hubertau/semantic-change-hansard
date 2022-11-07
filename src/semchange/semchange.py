@@ -95,8 +95,10 @@ class ParliamentDataHandler(object):
             leftbound  = date - relativedelta(years=100)
             rightbound = date + relativedelta(years=100)
 
-        self.data_t1 = self.unsplit_data[(self.unsplit_data['date'] > leftbound) & (self.unsplit_data['date'] <= date)]
-        self.data_t2 = self.unsplit_data[(self.unsplit_data['date'] > date) & (self.unsplit_data['date'] < rightbound)]
+        self.unsplit_data['datetime'] = pd.to_datetime(self.unsplit_data['date'])
+
+        self.data_t1 = self.unsplit_data[(self.unsplit_data['datetime'] > leftbound) & (self.unsplit_data['datetime'] <= date)]
+        self.data_t2 = self.unsplit_data[(self.unsplit_data['datetime'] > date) & (self.unsplit_data['datetime'] < rightbound)]
         self.split_complete = True
 
     # def obtain_unique(self, df, by='party'):

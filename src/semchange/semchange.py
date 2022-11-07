@@ -1242,12 +1242,13 @@ class ParliamentDataHandler(object):
 
             X_over, y_over = undersample.fit_resample(X, y)
             X, y = X_over, y_over
-        self.logger.info(f'Y value counts: {y.value_counts()}')
-        self.logger.info(f'Y train value counts: {y_train.value_counts()}')
 
         CHANGE_PROPORTION = np.sum(y == 'change')/len(y)
         stratification = np.random.choice(['change','no_change'],size=(len(y),), p=[CHANGE_PROPORTION, 1-CHANGE_PROPORTION])
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=2, stratify=stratification)
+
+        self.logger.info(f'Y value counts: {y.value_counts()}')
+        self.logger.info(f'Y train value counts: {y_train.value_counts()}')
 
         logreg = LogisticRegression()
         kf = logreg.fit(X_train, y_train)
@@ -1341,13 +1342,14 @@ class ParliamentDataHandler(object):
         stratification = np.random.choice(['change','no_change'],size=(len(y),), p=[CHANGE_PROPORTION, 1-CHANGE_PROPORTION])
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=2, stratify=stratification)
 
+        self.logger.info(f'Y value counts: {y.value_counts()}')
+        self.logger.info(f'Y train value counts: {y_train.value_counts()}')
+
         logreg = LogisticRegression()
         kf = logreg.fit(X_train, y_train)
 
         y_pred = logreg.predict(X_test)
 
-        self.logger.info(f'Y value counts: {y.value_counts()}')
-        self.logger.info(f'Y train value counts: {y_train.value_counts()}')
 
         scoring = {'accuracy' : make_scorer(accuracy_score), 
                'precision' : make_scorer(precision_score,pos_label='change'),

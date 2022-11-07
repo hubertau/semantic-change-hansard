@@ -1243,7 +1243,8 @@ class ParliamentDataHandler(object):
             X_over, y_over = undersample.fit_resample(X, y)
             X, y = X_over, y_over
 
-        CHANGE_PROPORTION = np.sum(y == 'change')/len(y)
+        # CHANGE_PROPORTION = np.sum(y == 'change')/len(y)
+        CHANGE_PROPORTION = 0.25
         stratification = np.random.choice(['change','no_change'],size=(len(y),), p=[CHANGE_PROPORTION, 1-CHANGE_PROPORTION])
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=2, stratify=stratification)
 
@@ -1338,7 +1339,8 @@ class ParliamentDataHandler(object):
             X=X_over
             y=y_over
 
-        CHANGE_PROPORTION = np.sum(y == 'change')/len(y)
+        # CHANGE_PROPORTION = np.sum(y == 'change')/len(y)
+        CHANGE_PROPORTION = 0.25
         stratification = np.random.choice(['change','no_change'],size=(len(y),), p=[CHANGE_PROPORTION, 1-CHANGE_PROPORTION])
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=2, stratify=stratification)
 

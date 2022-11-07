@@ -134,12 +134,12 @@ class ParliamentDataHandler(object):
         total_words = set()
         for model_savepath in self.speaker_saved_models:
             model = gensim.models.Word2Vec.load(model_savepath)
+            # if len(model.wv.index_to_key) < min_vocab_size:
+                # continue
             if 't1' in model_savepath:
                 self.dictOfModels['t1'].append(model)
             else:
                 self.dictOfModels['t2'].append(model)
-            # if len(model.wv.index_to_key) < min_vocab_size:
-                # continue
             # else:
             self.valid_split_speeches_by_mp.append(model_savepath)
             if first:
@@ -977,7 +977,7 @@ class ParliamentDataHandler(object):
 
         self.logger.info('Retrofit: Post Process complete')
 
-    def model(self, outdir, overwrite=False):
+    def model(self, outdir, overwrite=False, min_vocab_size = 10000):
         """Function to generate the actual Word2Vec models.
         """
         self.outdir = outdir
@@ -1236,7 +1236,7 @@ class ParliamentDataHandler(object):
         X_over, y_over = undersample.fit_resample(X, y)
         X, y = X_over, y_over
 
-        CHANGE_PROPORTION = (y == 'change')/len(y)
+        CHANGE_PROPORTION = np.sum(y == 'change')/len(y)
         stratification = np.random.choice(['change','nochange'],size=(len(y),), p=[CHANGE_PROPORTION, 1-CHANGE_PROPORTION])
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=2, stratify=stratification)
 
@@ -1329,7 +1329,7 @@ class ParliamentDataHandler(object):
         X=X_over
         y=y_over
 
-        CHANGE_PROPORTION = (y == 'change')/len(y)
+        CHANGE_PROPORTION = np.sum(y == 'change')/len(y)
         stratification = np.random.choice(['change','nochange'],size=(len(y),), p=[CHANGE_PROPORTION, 1-CHANGE_PROPORTION])
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=2, stratify=stratification)
 
@@ -1383,6 +1383,7 @@ class ParliamentDataHandler(object):
 @click.option('--model_output_dir', required=True, help='Outputs after model generation, such as average vectors')
 @click.option('--model', required=False, default='whole')
 @click.option('--tokenized_outdir', required=False)
+@click.option('--min_vocab_size', required=False)
 @click.option('--split_date', required=False, default='2016-06-23 23:59:59')
 @click.option('--split_range', required=False)
 @click.option('--retrofit_outdir', required=False)
@@ -1399,6 +1400,7 @@ def main(
         outdir,
         model_output_dir,
         tokenized_outdir,
+        min_vocab_size,
         split_date,
         split_range,
         retrofit_outdir,
@@ -1470,6 +1472,7 @@ def main(
     logger.info(f'PARAMS - change - {change}')
     logger.info(f'PARAMS - no_change - {no_change}')
     logger.info(f'PARAMS - outdir - {outdir}')
+    logger.info(f'PARAMS - min_vocab_size - {min_vocab_size}')
     logger.info(f'PARAMS - split date -  {split_date}')
     logger.info(f'PARAMS - split range - {split_range}')
     logger.info(f'PARAMS - model_output_dir - {model_output_dir}')
@@ -1502,7 +1505,8 @@ def main(
     )
     handler.model(
         outdir,
-        overwrite=overwrite_model
+        overwrite=overwrite_model,
+        min_vocab_size=min_vocab_size
     )
     handler.postprocess(
         change_list,

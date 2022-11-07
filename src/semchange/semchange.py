@@ -14,6 +14,7 @@ from concurrent.futures import ProcessPoolExecutor
 from csv import reader
 
 import click
+from dateutil.relativedelta import relativedelta
 import gensim
 import h5py
 import imblearn
@@ -85,9 +86,17 @@ class ParliamentDataHandler(object):
     #     #TODO: FIX THIS FUNCTION
     #     self.unsplit_data.loc[:,'tokenized'] = self.unsplit_data['tokenized'].apply(len)
 
-    def split_by_date(self, date):
-        self.data_t1 = self.unsplit_data[self.unsplit_data['date']<= date]
-        self.data_t2 = self.unsplit_data[self.unsplit_data['date']> date]
+    def split_by_date(self, date, split_range):
+        date = datetime.datetime.strptime(date, '%Y-%m-%d')
+        if split_range is not None:
+            leftbound  = date - relativedelta(years=split_range)
+            rightbound = date + relativedelta(years=split_range)
+        else:
+            leftbound  = date - relativedelta(years=100)
+            rightbound = date + relativedelta(years=100)
+
+        self.data_t1 = self.unsplit_data[(self.unsplit_data['date'] > leftbound) & (self.unsplit_data['date'] <= date)]
+        self.data_t2 = self.unsplit_data[(self.unsplit_data['date'] > date) & (self.unsplit_data['date'] < rightbound)]
         self.split_complete = True
 
     # def obtain_unique(self, df, by='party'):
@@ -1348,10 +1357,14 @@ class ParliamentDataHandler(object):
 @click.option('--model', required=False, default='whole')
 @click.option('--tokenized_outdir', required=False)
 @click.option('--split_date', required=False, default='2016-06-23 23:59:59')
+@click.option('--split_range', required=False)
 @click.option('--retrofit_outdir', required=False)
 @click.option('--log_level', required=False, default='INFO')
 @click.option('--log_dir', required=False)
 @click.option('--log_handler_level', required=False, default='stream')
+@click.option('--overwrite_preprocess', required=False, is_flag=True)
+@click.option('--overwrite_model', required=False, is_flag=True)
+@click.option('--overwrite_postprocess', required=False, is_flag=True)
 def main(
         file,
         change,
@@ -1360,11 +1373,15 @@ def main(
         model_output_dir,
         tokenized_outdir,
         split_date,
+        split_range,
         retrofit_outdir,
         model,
         log_level,
         log_dir,
         log_handler_level,
+        overwrite_preprocess,
+        overwrite_model,
+        overwrite_postprocess
     ):
     """Semantic Change.
 
@@ -1426,6 +1443,8 @@ def main(
     logger.info(f'PARAMS - change - {change}')
     logger.info(f'PARAMS - no_change - {no_change}')
     logger.info(f'PARAMS - outdir - {outdir}')
+    logger.info(f'PARAMS - split date -  {split_date}')
+    logger.info(f'PARAMS - split range - {split_range}')
     logger.info(f'PARAMS - model_output_dir - {model_output_dir}')
     logger.info(f'PARAMS - tokenized_outdir - {tokenized_outdir}')
     logger.info(f'PARAMS - retrofit_outdir - {retrofit_outdir}')
@@ -1442,52 +1461,28 @@ def main(
 
     # instantiate parliament data handler
     handler = ParliamentDataHandler.from_csv(file, tokenized=False)
-    # dev_date = '1995-01-01'
-    # logger.info(f"FOR DEV PURPOSES ONLY TAKING DATA AFTER {dev_date}")
-    # handler.unsplit_data = handler.unsplit_data[handler.unsplit_data['date']>dev_date]
     handler.tokenize_data(tokenized_data_dir = tokenized_outdir, overwrite = False)
     date_to_split = split_date
     logger.info(f'SPLITTING BY DATE {date_to_split}')
-    handler.split_by_date(date_to_split)
-
-    # if model == 'whole':
-    #     handler.model(outdir, by='whole', overwrite=True)
-    #     handler.woi(change_list, no_change_list)
-    #     handler.logreg()
-    #     handler.nn_comparison()
-    # elif model == 'speaker':
-    #     handler.model(outdir, by='speaker', overwrite=False)
-    #     handler.process_speaker(model_output_dir)
-    #     handler.woi(change_list, no_change_list)
-    #     handler.logreg()
-    #     handler.nn_comparison()
-    # elif model == 'retro' or model == 'retrofit':
-    #     handler.retrofit_prep(retrofit_outdir=retrofit_outdir, overwrite = False)
-    #     handler.model(outdir, by='retrofit', overwrite=False)
-    #     handler.woi(change_list, no_change_list)
-    #     handler.retrofit_main_create_synonyms()
-    #     handler.retrofit_create_input_vectors(workers = 10, overwrite=True)
-    #     handler.retrofit_output_vec(model_output_dir = model_output_dir)
-    #     handler.retrofit_post_process(change_list, no_change_list)
-    #     handler.logreg()
+    handler.split_by_date(date_to_split, split_range)
 
     # unified
     handler.preprocess(
         model = model,
         model_output_dir = model_output_dir,
         retrofit_outdir=retrofit_outdir,
-        overwrite=False
+        overwrite=overwrite_preprocess
     )
     handler.model(
         outdir,
-        overwrite=False
+        overwrite=overwrite_model
     )
     handler.postprocess(
         change_list,
         no_change_list,
         model_output_dir,
         workers = 10,
-        overwrite=False
+        overwrite=overwrite_postprocess
     )
     handler.logreg(model_output_dir)
 

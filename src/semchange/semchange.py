@@ -1497,11 +1497,11 @@ def main(
     # process change lists
     change_list = []
     for i in change:
-        change_list.append(i.strip('\n'))
+        change_list.append(i.strip('\n').lower())
     no_change_list = []
     if no_change:
         for i in no_change:
-            no_change_list.append(i.strip('\n'))
+            no_change_list.append(i.strip('\n').lower())
 
     # instantiate parliament data handler
     handler = ParliamentDataHandler.from_csv(file, tokenized=False)

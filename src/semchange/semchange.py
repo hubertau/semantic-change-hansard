@@ -1395,7 +1395,7 @@ class ParliamentDataHandler(object):
 @click.option('--model_output_dir', required=True, help='Outputs after model generation, such as average vectors')
 @click.option('--model', required=False, default='whole')
 @click.option('--tokenized_outdir', required=False)
-@click.option('--min_vocab_size', required=False)
+@click.option('--min_vocab_size', required=False, type=int)
 @click.option('--split_date', required=False, default='2016-06-23 23:59:59')
 @click.option('--split_range', required=False)
 @click.option('--retrofit_outdir', required=False)

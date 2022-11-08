@@ -1270,13 +1270,14 @@ class ParliamentDataHandler(object):
                'recall' : make_scorer(recall_score,pos_label='change'), 
                'f1_score' : make_scorer(f1_score,pos_label='change')}
 
-        scores = cross_validate(kf, X, y, cv=min(10, len(y)), scoring=scoring,error_score='raise')
+        num_samples = min(np.sum(y=='change'),np.sum(y=='no_change'))
+        scores = cross_validate(kf, X, y, cv=min(10, num_samples), scoring=scoring,error_score='raise')
         accuracy, precision, recall, f1_score_res = [], [], [], []
 
-        self.logger.info('Accuracy', scores['test_accuracy'].mean())
-        self.logger.info('Precision', scores['test_precision'].mean())
-        self.logger.info('Recall', scores['test_recall'].mean())
-        self.logger.info('F1 Score', scores['test_f1_score'].mean())
+        self.logger.info(f'Accuracy: {scores["test_accuracy"].mean()}')
+        self.logger.info(f'Precision, scores["test_precision"].mean()')
+        self.logger.info(f'Recall, scores["test_recall"].mean()')
+        self.logger.info(f'F1 Score, scores["test_f1_score"].mean()')
 
         accuracy.append(scores['test_accuracy'].mean())
         precision.append(scores['test_precision'].mean())
@@ -1297,7 +1298,7 @@ class ParliamentDataHandler(object):
         scoresDf.to_csv(os.path.join(model_output_dir, 'logreg.csv'))
 
     def nn_comparison(self, model_output_dir, undersample = True):
-        print('\n Running Nearest Neighbours Comparison')
+        self.logger.info('Running Nearest Neighbours Comparison')
         neighboursInT1 = []
         neighboursInT2 = []
 
@@ -1366,13 +1367,14 @@ class ParliamentDataHandler(object):
                'recall' : make_scorer(recall_score,pos_label='change'), 
                'f1_score' : make_scorer(f1_score,pos_label='change')}
 
-        scores = cross_validate(kf, X, y, cv=min(10, len(y)), scoring=scoring,error_score='raise')
+        num_samples = min(np.sum(y=='change'),np.sum(y=='no_change'))
+        scores = cross_validate(kf, X, y, cv=min(10, num_samples), scoring=scoring,error_score='raise')
         accuracy, precision, recall, f1_score_res = [], [], [], []
 
-        self.logger.info('Accuracy', scores['test_accuracy'].mean())
-        self.logger.info('Precision', scores['test_precision'].mean())
-        self.logger.info('Recall', scores['test_recall'].mean())
-        self.logger.info('F1 Score', scores['test_f1_score'].mean())
+        self.logger.info(f'Accuracy: {scores["test_accuracy"].mean()}')
+        self.logger.info(f'Precision, scores["test_precision"].mean()')
+        self.logger.info(f'Recall, scores["test_recall"].mean()')
+        self.logger.info(f'F1 Score, scores["test_f1_score"].mean()')
 
         accuracy.append(scores['test_accuracy'].mean())
         precision.append(scores['test_precision'].mean())

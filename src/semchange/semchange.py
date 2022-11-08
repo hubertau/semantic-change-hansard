@@ -371,6 +371,8 @@ class ParliamentDataHandler(object):
             dictSpeechesbyParty (dict): dict of partty:
         """
 
+        self.logger.info('Splitting speeches...')
+
 
         if by == 'party':
             splitspeeches = pd.DataFrame(columns=['df_name' ,'tokens', 'party'])
@@ -1028,7 +1030,9 @@ class ParliamentDataHandler(object):
                             skipped += 1
                             continue
                         model.save(model_savepath)
-                        self.logger.info(f'MODELLING - SPEAKER - Saved model to {model_savepath}.')
+                        if count % 100 == 0:
+                            self.logger.info(f'MODELLING - {count}/{len(self.split_speeches_by_mp)} = {count/len(self.split_speeches_by_mp)}% complete')
+                        # self.logger.info(f'MODELLING - SPEAKER - Saved model to {model_savepath}.')
                         self.speaker_saved_models.append(model_savepath)
                     except Exception as e:
                         self.logger.error(e)
@@ -1061,6 +1065,9 @@ class ParliamentDataHandler(object):
                     if len(model.wv.index_to_key) < min_vocab_size:
                         skipped += 1
                         continue
+
+                    if count % 100 == 0:
+                        self.logger.info(f'MODELLING - {count}/{len(self.split_speeches_by_mp)} = {count/len(self.split_speeches_by_mp)}% complete')
 
                     # N.B. only append savepath if retrofit model satisfies criterion.
                     self.retrofit_model_paths.append(savepath)

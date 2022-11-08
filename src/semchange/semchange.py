@@ -1275,9 +1275,9 @@ class ParliamentDataHandler(object):
         accuracy, precision, recall, f1_score_res = [], [], [], []
 
         self.logger.info(f'Accuracy: {scores["test_accuracy"].mean()}')
-        self.logger.info(f'Precision, scores["test_precision"].mean()')
-        self.logger.info(f'Recall, scores["test_recall"].mean()')
-        self.logger.info(f'F1 Score, scores["test_f1_score"].mean()')
+        self.logger.info(f'Precision, {scores["test_precision"].mean()}')
+        self.logger.info(f'Recall, {scores["test_recall"].mean()}')
+        self.logger.info(f'F1 Score, {scores["test_f1_score"].mean()}')
 
         accuracy.append(scores['test_accuracy'].mean())
         precision.append(scores['test_precision'].mean())
@@ -1372,9 +1372,9 @@ class ParliamentDataHandler(object):
         accuracy, precision, recall, f1_score_res = [], [], [], []
 
         self.logger.info(f'Accuracy: {scores["test_accuracy"].mean()}')
-        self.logger.info(f'Precision, scores["test_precision"].mean()')
-        self.logger.info(f'Recall, scores["test_recall"].mean()')
-        self.logger.info(f'F1 Score, scores["test_f1_score"].mean()')
+        self.logger.info(f'Precision, {scores["test_precision"].mean()}')
+        self.logger.info(f'Recall, {scores["test_recall"].mean()}')
+        self.logger.info(f'F1 Score, {scores["test_f1_score"].mean()}')
 
         accuracy.append(scores['test_accuracy'].mean())
         precision.append(scores['test_precision'].mean())

@@ -19,8 +19,8 @@ def main(scan_dir, outfile):
         if 'logreg' in split_path[-1]:
             model_type = 'logreg'
         else:
-            model_type = 'nn'
-        country, lang, event = split_path[-2].split('_')
+            model_type = 'nn' 
+        country, lang, event = os.path.split(split_path)[-1].split('_')
         data = pd.read_csv(f)
         model = data['Model'].iat[0]
         accuracy = data['Accuracy'].iat[0]

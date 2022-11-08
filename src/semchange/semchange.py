@@ -1290,7 +1290,7 @@ class ParliamentDataHandler(object):
             'Accuracy':accuracy,
             'Precision':precision,
             'Recall':recall,
-            'F1Score':f1_score
+            'F1Score':f1_score_res
         }
         scoresDf = pd.DataFrame(scoresDict)
         self.logger.info(scoresDf)
@@ -1387,7 +1387,7 @@ class ParliamentDataHandler(object):
             'Accuracy':accuracy,
             'Precision':precision,
             'Recall':recall,
-            'F1Score':f1_score
+            'F1Score':f1_score_res
         }
         scoresDf = pd.DataFrame(scoresDict)
 

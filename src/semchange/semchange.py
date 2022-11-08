@@ -1285,7 +1285,7 @@ class ParliamentDataHandler(object):
         f1_score_res.append(scores['test_f1_score'].mean())
 
         scoresDict = {
-            'Model':['whole Model'],
+            'Model': [f'{self.model_type}'],
             'Basis': ['Cosine Similarity'],
             'Accuracy':accuracy,
             'Precision':precision,
@@ -1381,7 +1381,14 @@ class ParliamentDataHandler(object):
         recall.append(scores['test_recall'].mean())
         f1_score_res.append(scores['test_f1_score'].mean())
 
-        scoresDict = {'Model':['whole Model'],'Basis': ['Cosine Similarity'],'Accuracy':accuracy,'Precision':precision,'Recall':recall,'F1Score':f1_score}
+        scoresDict = {
+            'Model':[f'{self.model_type}'],
+            'Basis': ['Cosine Similarity'],
+            'Accuracy':accuracy,
+            'Precision':precision,
+            'Recall':recall,
+            'F1Score':f1_score
+        }
         scoresDf = pd.DataFrame(scoresDict)
 
         scoresDf.to_csv(os.path.join(model_output_dir, 'nn_comparison.csv'))

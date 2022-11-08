@@ -11,8 +11,8 @@ import click
 @click.option('--scan_dir', required=True, help='directory within which to scan')
 @click.option('--outfile', '-o', required=True, help='where to save the master table')
 def main(scan_dir, outfile):
-    files_logreg = glob.glob(os.path.join(scan_dir, '*', '*logreg.csv'), recursive=True)
-    files_nn     = glob.glob(os.path.join(scan_dir, '*', '*nn_comparison.csv'), recursive=True)
+    files_logreg = glob.glob(os.path.join(scan_dir, '**', '*logreg.csv'), recursive=True)
+    files_nn     = glob.glob(os.path.join(scan_dir, '**', '*nn_comparison.csv'), recursive=True)
     rows = []
     for f in files_logreg + files_nn:
         split_path = os.path.split(f)

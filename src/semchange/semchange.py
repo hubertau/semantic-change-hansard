@@ -1383,7 +1383,8 @@ class ParliamentDataHandler(object):
 
         scoresDict = {'Model':['whole Model'],'Basis': ['Cosine Similarity'],'Accuracy':accuracy,'Precision':precision,'Recall':recall,'F1Score':f1_score}
         scoresDf = pd.DataFrame(scoresDict)
-        scoresDf
+
+        scoresDf.to_csv(os.path.join(model_output_dir, 'nn_comparison.csv'))
 
         group1= self.words_of_interest['overlappingNeighbours'][self.words_of_interest['semanticDifference'] == 'change']
         group2= self.words_of_interest['overlappingNeighbours'][self.words_of_interest['semanticDifference'] == 'no_change']
@@ -1393,7 +1394,7 @@ class ParliamentDataHandler(object):
         summary_neighbours, results_neighbours = rp.ttest(group1= self.words_of_interest['overlappingNeighbours'][self.words_of_interest['semanticDifference'] == 'change'], group1_name= "change",
                                     group2= self.words_of_interest['overlappingNeighbours'][self.words_of_interest['semanticDifference'] == 'no_change'], group2_name= "no_change")
         # print(summary_neighbours)
-        summary_neighbours.to_csv(os.path.join(model_output_dir, 'nn_comparison.csv'))
+        summary_neighbours.to_csv(os.path.join(model_output_dir, 'nn_comparison_ttest.csv'))
 
 
 

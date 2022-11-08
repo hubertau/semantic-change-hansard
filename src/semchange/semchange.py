@@ -215,10 +215,8 @@ class ParliamentDataHandler(object):
                 avgVecT2 = self.model2[word]
 
                 cosSimilarity = self.cosine_similarity(avgVecT1, avgVecT2)
-                self.cosine_similarity_df = self.cosine_similarity_df.append(
-                    {'Word': word, 'Cosine_similarity': cosSimilarity},
-                    ignore_index=True
-                )
+                insert_row = {'Word': word, 'Cosine_similarity': cosSimilarity}
+                self.cosine_similarity_df = pd.concat([self.cosine_similarity_df,pd.DataFrame([insert_row])], axis=0)
 
     def _intersection_align_gensim(self, m1, m2, words=None):
         """

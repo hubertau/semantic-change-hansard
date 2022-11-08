@@ -20,7 +20,7 @@ def main(scan_dir, outfile):
             model_type = 'logreg'
         else:
             model_type = 'nn' 
-        country, lang, event = os.path.split(split_path)[-1].split('_')
+        country, lang, event = split_path.split('/')[-1].split('_')
         data = pd.read_csv(f)
         model = data['Model'].iat[0]
         accuracy = data['Accuracy'].iat[0]

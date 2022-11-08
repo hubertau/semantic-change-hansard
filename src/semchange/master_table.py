@@ -26,7 +26,7 @@ def main(scan_dir, outfile):
         accuracy = data['Accuracy'].iat[0]
         precision = data['Precision'].iat[0]
         recall = data['Recall'].iat[0]
-        f1_score = data['F1 Score'].iat[0]
+        f1_score = data['F1Score'].iat[0]
 
         rows.append({
             "Model": model,

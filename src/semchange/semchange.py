@@ -1240,10 +1240,12 @@ class ParliamentDataHandler(object):
             X = self.cosine_similarity_df['Cosine_similarity'].values.reshape(-1,1)
             y = self.cosine_similarity_df['semanticDifference']
             self.logger.info(self.cosine_similarity_df)
+            self.cosine_similarity_df.to_csv(os.path.join(model_output_dir, 'logreg_df.csv'))
         else:
             X = self.words_of_interest['Cosine_similarity'].values.reshape(-1,1)
             y = self.words_of_interest['semanticDifference']
             self.logger.info(self.words_of_interest)
+            self.words_of_interest.to_csv(os.path.join(model_output_dir, 'nn_comparison_df.csv'))
 
         if undersample:
             undersample = RandomUnderSampler(sampling_strategy=1.0)
@@ -1263,7 +1265,6 @@ class ParliamentDataHandler(object):
         kf = logreg.fit(X_train, y_train)
 
         y_pred = logreg.predict(X_test)
-
 
         scoring = {'accuracy' : make_scorer(accuracy_score), 
                'precision' : make_scorer(precision_score,pos_label='change'),

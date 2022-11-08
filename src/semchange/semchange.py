@@ -1034,10 +1034,11 @@ class ParliamentDataHandler(object):
             self.logger.info('MODELLING - RETROFIT')
             self.retrofit_model_paths = []
             new = False
+            count = 0
+            skipped = 0
             for row in self.retrofit_prep_df.itertuples(): 
 
                 savepath = os.path.join(outdir, row.df_name)
-                self.retrofit_model_paths.append(savepath)
                 if (os.path.isfile(savepath) and overwrite) or not os.path.isfile(savepath):
                     new = True
                     model = gensim.models.Word2Vec(
@@ -1048,9 +1049,14 @@ class ParliamentDataHandler(object):
                         sg = 1
                     )
 
+                    count += 1
                     # Skip if below minimum size
                     if len(model.wv.index_to_key) < min_vocab_size:
+                        skipped += 1
                         continue
+
+                    # N.B. only append savepath if retrofit model satisfies criterion.
+                    self.retrofit_model_paths.append(savepath)
 
                     # Previous: Also saving model in a dict and exporting
                     # Updated 22/10/22: save as you go along for RAM reasons. Also just better
@@ -1059,6 +1065,8 @@ class ParliamentDataHandler(object):
 
                     # dictOfModels[dframe] = model
                     #model.save(os.path.join(models_folder, modelName))
+
+            self.logger.info(f"MODELLING - RETROFIT - {skipped} out of {count}  models skipped due to vocab size")
 
             if new:
                 self.logger.info('MODELLING - RETROFIT - New models detected. Loading back in and running alignment')

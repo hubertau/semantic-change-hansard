@@ -163,7 +163,7 @@ class ParliamentDataHandler(object):
             }
             self.cosine_similarity_df = pd.DataFrame(columns = ('Word', 'Cosine_similarity'))
             self.logger.info(f'PREPROCESS - SPEAKER - CALCULATING AVERAGE VECTORS')
-            for word in tqdm(total_words):
+            for word in total_words:
                 if self.verbosity > 0:
                     self.logger.info(f'PREPROCESS - SPEAKER - getting average vector for {word}')
                 avgVecT1 = self.computeAvgVec(word, time='t1')
@@ -1206,7 +1206,7 @@ class ParliamentDataHandler(object):
 
         elif self.model_type == 'speaker':
 
-            self.words_of_interest = self.cosine_similarity_df[self.cosine_similarity_df['Word'].isin(change+no_change)]
+            self.words_of_interest = self.cosine_similarity_df[self.cosine_similarity_df['Word'].isin(change+no_change)].copy()
 
             self.words_of_interest.loc[self.words_of_interest['Word'].isin(change), 'semanticDifference'] = 'change'
             self.words_of_interest.loc[self.words_of_interest['Word'].isin(no_change), 'semanticDifference'] = 'no_change'
@@ -1245,7 +1245,7 @@ class ParliamentDataHandler(object):
             X = self.words_of_interest['Cosine_similarity'].values.reshape(-1,1)
             y = self.words_of_interest['semanticDifference']
             self.logger.info(self.words_of_interest)
-            self.words_of_interest.to_csv(os.path.join(model_output_dir, 'nn_comparison_df.csv'))
+            self.words_of_interest.to_csv(os.path.join(model_output_dir, 'logreg_df.csv'))
 
         if undersample:
             undersample = RandomUnderSampler(sampling_strategy=1.0)
@@ -1304,7 +1304,7 @@ class ParliamentDataHandler(object):
         neighboursInT2 = []
 
         if self.model_type in ['retrofit', 'retro']:
-            self.words_of_interest = self.cosine_similarity_df
+            self.words_of_interest = self.cosine_similarity_df.copy()
 
         for word in self.words_of_interest['Word'].to_list():
 
@@ -1331,7 +1331,7 @@ class ParliamentDataHandler(object):
         for index in (self.words_of_interest['neighboursInT1'].index):
             neighboursT1 = self.words_of_interest.at[index, 'neighboursInT1']
             neighboursT2 = self.words_of_interest.at[index, 'neighboursInT2']
-            lengthOverlap.append(len(set(neighboursT1).intersection(neighboursT2)))
+            lengthOverlap.append(len(set(neighboursT1).intersection(set(neighboursT2))))
 
         self.words_of_interest['overlappingNeighbours'] = lengthOverlap
 

@@ -995,9 +995,21 @@ class ParliamentDataHandler(object):
             else:
                 # create model for time 1
                 self.logger.info('MODELLING - creating model for time 1')
-                self.model1 = gensim.models.Word2Vec(self.data_t1['tokenized'])
+                self.model1 = gensim.models.Word2Vec(
+                        self.data_t1['tokenized'],
+                        min_count=1,
+                        vector_size=300,
+                        window = 5,
+                        sg = 1
+                    )
                 self.logger.info('MODELLING - creating model for time 2')
-                self.model2 = gensim.models.Word2Vec(self.data_t2['tokenized'])
+                self.model2 = gensim.models.Word2Vec(
+                        self.data_t2['tokenized'],
+                        min_count=1,
+                        vector_size=300,
+                        window = 5,
+                        sg = 1
+                    )
 
                 self.model1.save(savepath_t1)
                 self.model2.save(savepath_t2)
@@ -1022,7 +1034,11 @@ class ParliamentDataHandler(object):
                     try:
                         count += 1
                         model = gensim.models.Word2Vec(
-                            row.tokens
+                            row.tokens,
+                            min_count=1,
+                            vector_size=300,
+                            window = 5,
+                            sg = 1
                         )
                         if len(model.wv.index_to_key) < min_vocab_size:
                             skipped += 1
@@ -1331,8 +1347,8 @@ class ParliamentDataHandler(object):
             self.logger.debug(row.Word, x)
             y = [tup[0] for tup in y]
 
-            self.words_of_interest.loc[row.Index, 'neighboursInT1'] = x
-            self.words_of_interest.loc[row.Index, 'neighboursInT2'] = y
+            self.words_of_interest.loc[row.Index, 'neighboursInT1'] = pd.Series(x)
+            self.words_of_interest.loc[row.Index, 'neighboursInT2'] = pd.Series(y)
 
         # self.words_of_interest['neighboursInT1'] = neighboursInT1
         # self.words_of_interest['neighboursInT2'] = neighboursInT2

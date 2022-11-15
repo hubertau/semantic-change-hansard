@@ -1312,29 +1312,29 @@ class ParliamentDataHandler(object):
 
     def nn_comparison(self, model_output_dir, undersample = True):
         self.logger.info('Running Nearest Neighbours Comparison')
-        neighboursInT1 = []
-        neighboursInT2 = []
+        # neighboursInT1 = []
+        # neighboursInT2 = []
 
         if self.model_type in ['retrofit', 'retro']:
             self.words_of_interest = self.cosine_similarity_df.copy()
 
-        for word in self.words_of_interest['Word'].to_list():
+        for row in self.words_of_interest.itertuples():
 
             if self.model_type in ['speaker', 'retrofit', 'retro']:
-                x = self.model1.similar_by_word(word,10)
-                y = self.model2.similar_by_word(word,10)
+                x = self.model1.similar_by_word(row.Word,10)
+                y = self.model2.similar_by_word(row.Word,10)
             elif self.model_type == 'whole':
-                x = self.model1.wv.similar_by_word(word,10) 
-                y = self.model2.wv.similar_by_word(word,10)
+                x = self.model1.wv.similar_by_word(row.Word,10) 
+                y = self.model2.wv.similar_by_word(row.Word,10)
 
             x = [tup[0] for tup in x]
             y = [tup[0] for tup in y]
 
-            neighboursInT1.append(x)
-            neighboursInT2.append(y)
+            self.words_of_interest.loc[row.Index, 'neighboursInT1'] = x
+            self.words_of_interest.loc[row.Index, 'neighboursInT2'] = y
 
-        self.words_of_interest['neighboursInT1'] = neighboursInT1
-        self.words_of_interest['neighboursInT2'] = neighboursInT2
+        # self.words_of_interest['neighboursInT1'] = neighboursInT1
+        # self.words_of_interest['neighboursInT2'] = neighboursInT2
 
         #words_of_interest['overlappingNeighbours'] = ?
         #intersectingNeighbs = set(words_of_interest['neighboursInT1'].to_list()).intersect(words_of_interest['neighboursInT2'].to_list())
@@ -1343,7 +1343,9 @@ class ParliamentDataHandler(object):
         for index in (self.words_of_interest['neighboursInT1'].index):
             neighboursT1 = self.words_of_interest.at[index, 'neighboursInT1']
             neighboursT2 = self.words_of_interest.at[index, 'neighboursInT2']
-            lengthOverlap.append(len(set(neighboursT1).intersection(set(neighboursT2))))
+            lengthOverlap.append(len(
+                set(neighboursT1).intersection(set(neighboursT2))
+            ))
 
         self.words_of_interest['overlappingNeighbours'] = lengthOverlap
 

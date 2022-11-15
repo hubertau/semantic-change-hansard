@@ -9,6 +9,7 @@ import functools
 import multiprocessing
 import logging
 import os
+from collections import defaultdict, Counter
 import pickle
 from concurrent.futures import ProcessPoolExecutor
 from csv import reader
@@ -121,6 +122,15 @@ class ParliamentDataHandler(object):
         elif self.model_type == 'whole':
             self.logger.info(f'PREPROCESS - WHOLE - None required.')
 
+    def _get_retrofit_word_counts(self, word_list, time='t1'):
+        output = Counter()
+        for model_path in self.retrofit_model_paths:
+            if time in model_path:
+                model = gensim.models.Word2vec.load(model_path)
+                for word in word_list:
+                    output[word] += model.wv.get_vecattr(word, 'count')
+        return output 
+
     def process_speaker(self, model_output_dir, min_vocab_size=10000, overwrite=False):
         """Function to load in speaker models, filter by vocab size if necessary.
         """
@@ -161,13 +171,18 @@ class ParliamentDataHandler(object):
                 't1': {},
                 't2': {}
             }
-            self.cosine_similarity_df = pd.DataFrame(columns = ('Word', 'Cosine_similarity'))
+            self.cosine_similarity_df = pd.DataFrame(columns = (
+                'Word',
+                'Frequency_t1',
+                'Frequency_t2',
+                'Cosine_similarity'
+            ))
             self.logger.info(f'PREPROCESS - SPEAKER - CALCULATING AVERAGE VECTORS')
             for word in total_words:
                 if self.verbosity > 0:
                     self.logger.info(f'PREPROCESS - SPEAKER - getting average vector for {word}')
-                avgVecT1 = self.computeAvgVec(word, time='t1')
-                avgVecT2 = self.computeAvgVec(word, time='t2')
+                avgVecT1, freq_t1 = self.computeAvgVec(word, time='t1')
+                avgVecT2, freq_t2 = self.computeAvgVec(word, time='t2')
 
                 if(np.sum(avgVecT1)==0 or np.sum(avgVecT2)==0):
                     if self.verbosity > 0:
@@ -182,6 +197,8 @@ class ParliamentDataHandler(object):
                     cosSimilarity = self.cosine_similarity(avgVecT1, avgVecT2)
                     insert_row = {
                         "Word": word,
+                        "Frequency_t1": freq_t1,
+                        "Frequency_t2": freq_t2,
                         "Cosine_similarity": cosSimilarity
                     }
 
@@ -925,7 +942,12 @@ class ParliamentDataHandler(object):
         words_of_interest = list(set([vk.split('-')[0] for vk in vectorKeys]))
         # print(words_of_interest, len(words_of_interest))
 
-        self.cosine_similarity_df = pd.DataFrame(columns = ('Word', 'Cosine_similarity'))
+        self.cosine_similarity_df = pd.DataFrame(columns = (
+            'Word',
+            'Frequency_t1',
+            'Frequency_t2',
+            'Cosine_similarity'
+        ))
 
         # NOW WE ONLY HAVE THOSE WORDS HERE WHICH ARE PRESENT IN THE VECTORS.
         t1Keys = [t for t in list(dictKeyVector.keys()) if 't1' in t]
@@ -941,8 +963,8 @@ class ParliamentDataHandler(object):
             # wordT2Keys = [k for k in t2Keys if k.split('-')[0]==word]
 
             #Since here the key itself contains the word we're not simply sending T1 keys but sending word-wise key
-            avgVecT1 = self.computeAvgVec(word, time = 't1', dictKeyVector = dictKeyVector)
-            avgVecT2 = self.computeAvgVec(word, time = 't2', dictKeyVector = dictKeyVector)
+            avgVecT1, _ = self.computeAvgVec(word, time = 't1', dictKeyVector = dictKeyVector)
+            avgVecT2, _ = self.computeAvgVec(word, time = 't2', dictKeyVector = dictKeyVector)
 
             if(avgVecT1.shape == avgVecT2.shape):
                 # Cos similarity between averages
@@ -950,8 +972,15 @@ class ParliamentDataHandler(object):
                 sims.append(cosSimilarity)
             else:
                 self.logger.info('Word not found')
+        word_count_dict_t1 = self._get_retrofit_word_counts(words_of_interest, time='t1')
+        word_count_dict_t2 = self._get_retrofit_word_counts(words_of_interest, time='t2')
         self.cosine_similarity_df['Word']=words_of_interest
         self.cosine_similarity_df['Cosine_similarity']=sims
+        self.cosine_similarity_df['Frequency_t1'] = self.cosine_similarity_df['Word'].apply(lambda x: word_count_dict_t1[x])
+        self.cosine_similarity_df['Frequency_t2'] = self.cosine_similarity_df['Word'].apply(lambda x: word_count_dict_t2[x])
+
+        self.cosine_similarity_df.loc[:,'FrequencyRatio'] = self.cosine_similarity_df['Frequency_t1']/self.cosine_similarity_df['Frequency_t2']
+        self.cosine_similarity_df.loc[:,'TotalFrequency'] = self.cosine_similarity_df['Frequency_t1'] + self.cosine_similarity_df['Frequency_t2']
 
         '''
         self.cosine_similarity_df_sorted = self.cosine_similarity_df.sort_values(by='Cosine_similarity', ascending=True)
@@ -1045,7 +1074,7 @@ class ParliamentDataHandler(object):
                             continue
                         model.save(model_savepath)
                         if count % 100 == 0:
-                            self.logger.info(f'MODELLING - {count}/{len(self.split_speeches_by_mp)} = {count/len(self.split_speeches_by_mp)}% complete')
+                            self.logger.info(f'MODELLING - {count}/{len(self.split_speeches_by_mp)} = {count/len(self.split_speeches_by_mp):.2f}% complete')
                         # self.logger.info(f'MODELLING - SPEAKER - Saved model to {model_savepath}.')
                         self.speaker_saved_models.append(model_savepath)
                     except Exception as e:
@@ -1081,7 +1110,7 @@ class ParliamentDataHandler(object):
                         continue
 
                     if count % 100 == 0:
-                        self.logger.info(f'MODELLING - {count}/{len(self.split_speeches_by_mp)} = {count/len(self.split_speeches_by_mp)}% complete')
+                        self.logger.info(f'MODELLING - {count}/{len(self.split_speeches_by_mp)} = {count/len(self.split_speeches_by_mp):.2f}% complete')
 
                     # N.B. only append savepath if retrofit model satisfies criterion.
                     self.retrofit_model_paths.append(savepath)
@@ -1134,6 +1163,7 @@ class ParliamentDataHandler(object):
 
         Returns:
             avgEmbedding: Average embedding for the word
+            word_count: total count across t1 or t2
         """
         if dictKeyVector:
             modelsSum = np.zeros(np.array(dictKeyVector[list(dictKeyVector.keys())[0]]).shape[0])
@@ -1142,6 +1172,7 @@ class ParliamentDataHandler(object):
 
         # count for seeing how many to divide by
         count = 0
+        word_count = 0
         if dictKeyVector:
             for key, value in dictKeyVector.items():
                 if w in key and time in key:
@@ -1151,6 +1182,7 @@ class ParliamentDataHandler(object):
             for model in self.dictOfModels[time]:
                 try:
                     modelsSum = np.add(modelsSum, model.wv[w])
+                    word_count += model.wv.get_vecattr(w, "count")
                     count += 1
                 except KeyError:
                     continue
@@ -1158,10 +1190,12 @@ class ParliamentDataHandler(object):
         if count == 0:
             if self.verbosity > 0:
                 print(f'Word "{w}" not found')
-            return modelsSum
+            return modelsSum, word_count
         else:
             avgEmbedding = np.divide(modelsSum, count)
-            return avgEmbedding
+            return avgEmbedding, word_count
+
+    # def _get_count_over_models(self, word, time='t1', )
 
     def _save_word2vec_format(self, fname, vocab, vector_size, binary=True):
         """Store the input-hidden weight matrix in the same format used by the original
@@ -1234,7 +1268,11 @@ class ParliamentDataHandler(object):
 
         elif self.model_type == 'speaker':
 
+
             self.words_of_interest = self.cosine_similarity_df[self.cosine_similarity_df['Word'].isin(change+no_change)].copy()
+
+            self.cosine_similarity_df.loc[:,'FrequencyRatio'] = self.cosine_similarity_df['Frequency_t1']/self.cosine_similarity_df['Frequency_t2']
+            self.cosine_similarity_df.loc[:,'TotalFrequency'] = self.cosine_similarity_df['Frequency_t1'] + self.cosine_similarity_df['Frequency_t2']
 
             self.words_of_interest.loc[self.words_of_interest['Word'].isin(change), 'semanticDifference'] = 'change'
             self.words_of_interest.loc[self.words_of_interest['Word'].isin(no_change), 'semanticDifference'] = 'no_change'
@@ -1262,8 +1300,8 @@ class ParliamentDataHandler(object):
             self.retrofit_output_vec(model_output_dir = model_output_dir)
             self.retrofit_post_process(change_list, no_change_list, model_output_dir)
 
-    def logreg(self, model_output_dir, undersample = True):
-        self.logger.info('RUNNING LOGREG')
+    def logreg(self, model_output_dir, undersample = True, logreg_type = 0):
+        self.logger.info(f'RUNNING LOGREG. TYPE {logreg_type}')
         if self.model_type == 'retrofit':
             X = self.cosine_similarity_df['Cosine_similarity'].values.reshape(-1,1)
             y = self.cosine_similarity_df['semanticDifference']
@@ -1290,6 +1328,17 @@ class ParliamentDataHandler(object):
         self.logger.info(f'Y train value counts: {y_train.value_counts()}')
 
         logreg = LogisticRegression()
+
+        ### DIFFERENT INPUTS INTO LOGREG
+        if logreg_type == 0:
+            X_train.drop(['TotalFrequency','Frequency_t1', 'Frequency_t2', 'TotalFrequency', 'FrequencyRatio'], axis=1, inplace=True)
+        elif logreg_type == 1:
+            X_train['log_freq'] = np.log10(X_train['TotalFrequency'])
+            X_train.drop(['TotalFrequency','Frequency_t1', 'Frequency_t2', 'TotalFrequency', 'FrequencyRatio'], axis=1, inplace=True)
+        elif logreg_type == 2:
+            X_train['log_freq'] = np.log10(X_train['TotalFrequency'])
+            X_train.drop(['TotalFrequency','Frequency_t1', 'Frequency_t2', 'TotalFrequency'], axis=1, inplace=True)
+        self.logger.info(X_train)
         kf = logreg.fit(X_train, y_train)
 
         y_pred = logreg.predict(X_test)

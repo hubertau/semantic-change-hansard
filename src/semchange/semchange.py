@@ -1431,7 +1431,7 @@ class ParliamentDataHandler(object):
 @click.option('--tokenized_outdir', required=False)
 @click.option('--min_vocab_size', required=False, type=int)
 @click.option('--split_date', required=False, default='2016-06-23 23:59:59')
-@click.option('--split_range', required=False)
+@click.option('--split_range', required=False, type=int)
 @click.option('--retrofit_outdir', required=False)
 @click.option('--undersample', required=False, is_flag = True)
 @click.option('--log_level', required=False, default='INFO')

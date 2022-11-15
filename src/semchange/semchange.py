@@ -1328,6 +1328,7 @@ class ParliamentDataHandler(object):
                 y = self.model2.wv.similar_by_word(row.Word,10)
 
             x = [tup[0] for tup in x]
+            self.logger.debug(row.Word, x)
             y = [tup[0] for tup in y]
 
             self.words_of_interest.loc[row.Index, 'neighboursInT1'] = x

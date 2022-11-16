@@ -1632,7 +1632,7 @@ def main(
     handler.logreg(model_output_dir, undersample)
     handler.logreg(model_output_dir, undersample, logreg_type=1)
     handler.logreg(model_output_dir, undersample, logreg_type=2)
-     handler.nn_comparison(model_output_dir, undersample)
+    handler.nn_comparison(model_output_dir, undersample)
 
 if __name__ == '__main__':
     main()

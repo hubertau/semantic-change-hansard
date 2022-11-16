@@ -1111,6 +1111,8 @@ class ParliamentDataHandler(object):
 
                     # dictOfModels[dframe] = model
                     #model.save(os.path.join(models_folder, modelName))
+                else:
+                    self.retrofit_model_paths.append(savepath)
 
             self.logger.info(f"MODELLING - RETROFIT - {skipped} out of {count}  models skipped due to vocab size")
 

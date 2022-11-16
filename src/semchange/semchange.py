@@ -1110,7 +1110,7 @@ class ParliamentDataHandler(object):
                         continue
 
                     if count % 100 == 0:
-                        self.logger.info(f'MODELLING - {count}/{len(self.split_speeches_by_mp)} = {count/len(self.split_speeches_by_mp):.2f}% complete')
+                        self.logger.info(f'MODELLING - {count}/{len(self.retrofit_prep_df)} = {count/len(self.retrofit_prep_df):.2f}% complete')
 
                     # N.B. only append savepath if retrofit model satisfies criterion.
                     self.retrofit_model_paths.append(savepath)

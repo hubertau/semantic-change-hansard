@@ -83,10 +83,6 @@ class ParliamentDataHandler(object):
             self.logger.info(f'Loading in tokenized data from {savepath}')
             self.unsplit_data = pd.read_pickle(savepath)
 
-    # def remove_stopwords_from_tokenized(self):
-    #     #TODO: FIX THIS FUNCTION
-    #     self.unsplit_data.loc[:,'tokenized'] = self.unsplit_data['tokenized'].apply(len)
-
     def split_by_date(self, date, split_range):
         date = datetime.datetime.strptime(date, '%Y-%m-%d')
         if split_range is not None:
@@ -101,14 +97,6 @@ class ParliamentDataHandler(object):
         self.data_t1 = self.unsplit_data[(self.unsplit_data['datetime'] > leftbound) & (self.unsplit_data['datetime'] <= date)]
         self.data_t2 = self.unsplit_data[(self.unsplit_data['datetime'] > date) & (self.unsplit_data['datetime'] < rightbound)]
         self.split_complete = True
-
-    # def obtain_unique(self, df, by='party'):
-    #     if by == 'party':
-    #         pass
-    #     elif by == 'mp':
-    #         by = 'speaker'
-    #     unique = list(df[by].unique())
-    #     return unique
 
     def preprocess(self, model = None, model_output_dir = None, retrofit_outdir=None, overwrite=None):
         """TODO: Use this function to unify the retrofit prep, the tokenising, splitting of speeches, etc. so this is not duplicated in subsequent processes"""
@@ -1074,7 +1062,7 @@ class ParliamentDataHandler(object):
                             continue
                         model.save(model_savepath)
                         if count % 100 == 0:
-                            self.logger.info(f'MODELLING - {count}/{len(self.split_speeches_by_mp)} = {count/len(self.split_speeches_by_mp):.2f}% complete')
+                            self.logger.info(f'MODELLING - {count}/{len(self.split_speeches_by_mp)} = {100*count/len(self.split_speeches_by_mp):.2f}% complete')
                         # self.logger.info(f'MODELLING - SPEAKER - Saved model to {model_savepath}.')
                         self.speaker_saved_models.append(model_savepath)
                     except Exception as e:
@@ -1110,7 +1098,7 @@ class ParliamentDataHandler(object):
                         continue
 
                     if count % 100 == 0:
-                        self.logger.info(f'MODELLING - {count}/{len(self.retrofit_prep_df)} = {count/len(self.retrofit_prep_df):.2f}% complete')
+                        self.logger.info(f'MODELLING - {count}/{len(self.retrofit_prep_df)} = {100*count/len(self.retrofit_prep_df):.2f}% complete')
 
                     # N.B. only append savepath if retrofit model satisfies criterion.
                     self.retrofit_model_paths.append(savepath)
@@ -1303,15 +1291,43 @@ class ParliamentDataHandler(object):
     def logreg(self, model_output_dir, undersample = True, logreg_type = 0):
         self.logger.info(f'RUNNING LOGREG. TYPE {logreg_type}')
         if self.model_type == 'retrofit':
-            X = self.cosine_similarity_df['Cosine_similarity'].values.reshape(-1,1)
+            if logreg_type == 0:
+                X = self.cosine_similarity_df['Cosine_similarity'].values.reshape(-1,1)
+            elif logreg_type == 1:
+                self.cosine_similarity_df['log_freq'] = np.log10(self.cosine_similarity_df['TotalFrequency'])
+                X = self.cosine_similarity_df[['Cosine_similarity', 'log_freq']].values.reshape(-1,2)
+            elif logreg_type == 2:
+                X = self.cosine_similarity_df[['Cosine_similarity','FrequencyRatio']].values.reshape(-1,2)
+            elif logreg_type == 3:
+                self.cosine_similarity_df['log_freq'] = np.log10(self.cosine_similarity_df['TotalFrequency'])
+                X = self.cosine_similarity_df[['Cosine_similarity', 'log_freq', 'FrequencyRatio']].values.reshape(-1,3)
             y = self.cosine_similarity_df['semanticDifference']
             self.logger.info(self.cosine_similarity_df)
             self.cosine_similarity_df.to_csv(os.path.join(model_output_dir, 'logreg_df.csv'))
         else:
-            X = self.words_of_interest['Cosine_similarity'].values.reshape(-1,1)
+            if logreg_type == 0:
+                X = self.words_of_interest['Cosine_similarity'].values.reshape(-1,1)
+            elif logreg_type == 1:
+                self.words_of_interest['log_freq'] = np.log10(self.words_of_interest['TotalFrequency'])
+                X = self.words_of_interest[['Cosine_similarity', 'log_freq']].values.reshape(-1,2)
+            elif logreg_type == 2:
+                X = self.words_of_interest[['Cosine_similarity','FrequencyRatio']].values.reshape(-1,2)
+            elif logreg_type == 3:
+                self.words_of_interest['log_freq'] = np.log10(self.words_of_interest['TotalFrequency'])
+                X = self.words_of_interest[['Cosine_similarity', 'log_freq', 'FrequencyRatio']].values.reshape(-1,3)
             y = self.words_of_interest['semanticDifference']
             self.logger.info(self.words_of_interest)
             self.words_of_interest.to_csv(os.path.join(model_output_dir, 'logreg_df.csv'))
+
+        # ### DIFFERENT INPUTS INTO LOGREG
+        # if logreg_type == 0:
+        #     X_train.drop(['TotalFrequency','Frequency_t1', 'Frequency_t2', 'TotalFrequency', 'FrequencyRatio'], axis=1, inplace=True)
+        # elif logreg_type == 1:
+        #     X_train['log_freq'] = np.log10(X_train['TotalFrequency'])
+        #     X_train.drop(['TotalFrequency','Frequency_t1', 'Frequency_t2', 'TotalFrequency', 'FrequencyRatio'], axis=1, inplace=True)
+        # elif logreg_type == 2:
+        #     X_train['log_freq'] = np.log10(X_train['TotalFrequency'])
+        #     X_train.drop(['TotalFrequency','Frequency_t1', 'Frequency_t2', 'TotalFrequency'], axis=1, inplace=True)
 
         if undersample:
             undersample = RandomUnderSampler(sampling_strategy=1.0)
@@ -1329,15 +1345,6 @@ class ParliamentDataHandler(object):
 
         logreg = LogisticRegression()
 
-        ### DIFFERENT INPUTS INTO LOGREG
-        if logreg_type == 0:
-            X_train.drop(['TotalFrequency','Frequency_t1', 'Frequency_t2', 'TotalFrequency', 'FrequencyRatio'], axis=1, inplace=True)
-        elif logreg_type == 1:
-            X_train['log_freq'] = np.log10(X_train['TotalFrequency'])
-            X_train.drop(['TotalFrequency','Frequency_t1', 'Frequency_t2', 'TotalFrequency', 'FrequencyRatio'], axis=1, inplace=True)
-        elif logreg_type == 2:
-            X_train['log_freq'] = np.log10(X_train['TotalFrequency'])
-            X_train.drop(['TotalFrequency','Frequency_t1', 'Frequency_t2', 'TotalFrequency'], axis=1, inplace=True)
         self.logger.info(X_train)
         kf = logreg.fit(X_train, y_train)
 
@@ -1376,8 +1383,8 @@ class ParliamentDataHandler(object):
         #save result
         scoresDf.to_csv(os.path.join(model_output_dir, 'logreg.csv'))
 
-    def nn_comparison(self, model_output_dir, undersample = True, nn_type = 0):
-        self.logger.info(f'Running Nearest Neighbours Comparison. Type: {nn_type}')
+    def nn_comparison(self, model_output_dir, undersample = True):
+        self.logger.info(f'Running Nearest Neighbours Comparison')
         # neighboursInT1 = []
         # neighboursInT2 = []
 
@@ -1418,7 +1425,18 @@ class ParliamentDataHandler(object):
 
         self.words_of_interest[self.words_of_interest['semanticDifference']=='change']['overlappingNeighbours'].describe()
         self.words_of_interest[self.words_of_interest['semanticDifference']=='no_change']['overlappingNeighbours'].describe()
-        neighbours_of_changed_words = self.words_of_interest[self.words_of_interest['semanticDifference']=='change'].sort_values(by='Cosine_similarity',ascending=True)[['Word','neighboursInT1','neighboursInT2']]
+        # neighbours_of_changed_words = self.words_of_interest[self.words_of_interest['semanticDifference']=='change'].sort_values(by='Cosine_similarity',ascending=True)[['Word','neighboursInT1','neighboursInT2']]
+
+
+        # ### DIFFERENT INPUTS INTO LOGREG
+        # if nn_type == 0:
+        #     X_train.drop(['TotalFrequency','Frequency_t1', 'Frequency_t2', 'TotalFrequency', 'FrequencyRatio'], axis=1, inplace=True)
+        # elif nn_type == 1:
+        #     X_train['log_freq'] = np.log10(X_train['TotalFrequency'])
+        #     X_train.drop(['TotalFrequency','Frequency_t1', 'Frequency_t2', 'TotalFrequency', 'FrequencyRatio'], axis=1, inplace=True)
+        # elif nn_type == 2:
+        #     X_train['log_freq'] = np.log10(X_train['TotalFrequency'])
+        #     X_train.drop(['TotalFrequency','Frequency_t1', 'Frequency_t2', 'TotalFrequency'], axis=1, inplace=True)
 
         X = self.words_of_interest['overlappingNeighbours'].values.reshape(-1,1)
         y = self.words_of_interest['semanticDifference']
@@ -1439,15 +1457,6 @@ class ParliamentDataHandler(object):
         self.logger.info(f'Y train value counts: {y_train.value_counts()}')
 
         logreg = LogisticRegression()
-        ### DIFFERENT INPUTS INTO LOGREG
-        if nn_type == 0:
-            X_train.drop(['TotalFrequency','Frequency_t1', 'Frequency_t2', 'TotalFrequency', 'FrequencyRatio'], axis=1, inplace=True)
-        elif nn_type == 1:
-            X_train['log_freq'] = np.log10(X_train['TotalFrequency'])
-            X_train.drop(['TotalFrequency','Frequency_t1', 'Frequency_t2', 'TotalFrequency', 'FrequencyRatio'], axis=1, inplace=True)
-        elif nn_type == 2:
-            X_train['log_freq'] = np.log10(X_train['TotalFrequency'])
-            X_train.drop(['TotalFrequency','Frequency_t1', 'Frequency_t2', 'TotalFrequency'], axis=1, inplace=True)
         kf = logreg.fit(X_train, y_train)
 
         y_pred = logreg.predict(X_test)
@@ -1479,7 +1488,7 @@ class ParliamentDataHandler(object):
             'Precision':precision,
             'Recall':recall,
             'F1Score':f1_score_res,
-            'logreg_type': nn_type
+            'logreg_type': np.NaN
         }
         scoresDf = pd.DataFrame(scoresDict)
 
@@ -1642,9 +1651,8 @@ def main(
     handler.logreg(model_output_dir, undersample)
     handler.logreg(model_output_dir, undersample, logreg_type=1)
     handler.logreg(model_output_dir, undersample, logreg_type=2)
+    handler.logreg(model_output_dir, undersample, logreg_type=3)
     handler.nn_comparison(model_output_dir, undersample)
-    handler.nn_comparison(model_output_dir, undersample, logreg_type=1)
-    handler.nn_comparison(model_output_dir, undersample, logreg_type=2)
 
 if __name__ == '__main__':
     main()

@@ -1582,8 +1582,8 @@ def main(
 
     # Log all the parameters
     logger.info(f'PARAMS - file - {file}')
-    logger.info(f'PARAMS - change - {change}')
-    logger.info(f'PARAMS - no_change - {no_change}')
+    logger.info(f'PARAMS - change - {change.name}')
+    logger.info(f'PARAMS - no_change - {no_change.name}')
     logger.info(f'PARAMS - outdir - {outdir}')
     logger.info(f'PARAMS - min_vocab_size - {min_vocab_size}')
     logger.info(f'PARAMS - split date -  {split_date}')

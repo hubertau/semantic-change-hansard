@@ -867,11 +867,12 @@ class ParliamentDataHandler(object):
         return wordVectors
 
     def retrofit_output_vec(self, model_output_dir = None, overwrite=False):
+        self.logger.info('Retrofit: Generate outfile')
+        self.retrofit_outfile = os.path.join(model_output_dir,'retrofit_out.txt')
         if (os.path.isfile(self.retrofit_outfile) and overwrite) or not os.path.isfile(self.retrofit_outfile):
             wordVecs = self.retrofit_read_word_vecs_hdf5()
             lexicon = retrofit.read_lexicon(self.synTextPath)
             numIter = int(10)
-            self.retrofit_outfile = os.path.join(model_output_dir,'retrofit_out.txt')
 
             ''' Enrich the word vectors using ppdb and print the enriched vectors '''
             retrofit.print_word_vecs(retrofit.retrofit(wordVecs, lexicon, numIter), self.retrofit_outfile)

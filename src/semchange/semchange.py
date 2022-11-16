@@ -1377,7 +1377,7 @@ class ParliamentDataHandler(object):
         scoresDf.to_csv(os.path.join(model_output_dir, 'logreg.csv'))
 
     def nn_comparison(self, model_output_dir, undersample = True, nn_type = 0):
-        self.logger.info('Running Nearest Neighbours Comparison')
+        self.logger.info(f'Running Nearest Neighbours Comparison. Type: {nn_type}')
         # neighboursInT1 = []
         # neighboursInT2 = []
 

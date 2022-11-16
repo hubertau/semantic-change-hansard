@@ -1368,7 +1368,8 @@ class ParliamentDataHandler(object):
             'Accuracy':accuracy,
             'Precision':precision,
             'Recall':recall,
-            'F1Score':f1_score_res
+            'F1Score':f1_score_res,
+            'Logreg_type': logreg_type
         }
         scoresDf = pd.DataFrame(scoresDict)
         self.logger.info(scoresDf)
@@ -1629,7 +1630,9 @@ def main(
         overwrite=overwrite_postprocess
     )
     handler.logreg(model_output_dir, undersample)
-    handler.nn_comparison(model_output_dir, undersample)
+    handler.logreg(model_output_dir, undersample, logreg_type=1)
+    handler.logreg(model_output_dir, undersample, logreg_type=2)
+     handler.nn_comparison(model_output_dir, undersample)
 
 if __name__ == '__main__':
     main()

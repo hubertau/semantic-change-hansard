@@ -1389,8 +1389,8 @@ class ParliamentDataHandler(object):
             self.logger.debug(row.Word, x)
             y = [tup[0] for tup in y]
 
-            self.words_of_interest.loc[row.Index, 'neighboursInT1'] = pd.Series(x)
-            self.words_of_interest.loc[row.Index, 'neighboursInT2'] = pd.Series(y)
+            self.words_of_interest.at[row.Index, 'neighboursInT1'] = x
+            self.words_of_interest.at[row.Index, 'neighboursInT2'] = y
 
         # self.words_of_interest['neighboursInT1'] = neighboursInT1
         # self.words_of_interest['neighboursInT2'] = neighboursInT2

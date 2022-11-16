@@ -1376,7 +1376,7 @@ class ParliamentDataHandler(object):
         #save result
         scoresDf.to_csv(os.path.join(model_output_dir, 'logreg.csv'))
 
-    def nn_comparison(self, model_output_dir, undersample = True):
+    def nn_comparison(self, model_output_dir, undersample = True, nn_type = 0):
         self.logger.info('Running Nearest Neighbours Comparison')
         # neighboursInT1 = []
         # neighboursInT2 = []
@@ -1439,6 +1439,15 @@ class ParliamentDataHandler(object):
         self.logger.info(f'Y train value counts: {y_train.value_counts()}')
 
         logreg = LogisticRegression()
+        ### DIFFERENT INPUTS INTO LOGREG
+        if nn_type == 0:
+            X_train.drop(['TotalFrequency','Frequency_t1', 'Frequency_t2', 'TotalFrequency', 'FrequencyRatio'], axis=1, inplace=True)
+        elif nn_type == 1:
+            X_train['log_freq'] = np.log10(X_train['TotalFrequency'])
+            X_train.drop(['TotalFrequency','Frequency_t1', 'Frequency_t2', 'TotalFrequency', 'FrequencyRatio'], axis=1, inplace=True)
+        elif nn_type == 2:
+            X_train['log_freq'] = np.log10(X_train['TotalFrequency'])
+            X_train.drop(['TotalFrequency','Frequency_t1', 'Frequency_t2', 'TotalFrequency'], axis=1, inplace=True)
         kf = logreg.fit(X_train, y_train)
 
         y_pred = logreg.predict(X_test)
@@ -1469,7 +1478,8 @@ class ParliamentDataHandler(object):
             'Accuracy':accuracy,
             'Precision':precision,
             'Recall':recall,
-            'F1Score':f1_score_res
+            'F1Score':f1_score_res,
+            'logreg_type': nn_type
         }
         scoresDf = pd.DataFrame(scoresDict)
 
@@ -1633,6 +1643,8 @@ def main(
     handler.logreg(model_output_dir, undersample, logreg_type=1)
     handler.logreg(model_output_dir, undersample, logreg_type=2)
     handler.nn_comparison(model_output_dir, undersample)
+    handler.nn_comparison(model_output_dir, undersample, logreg_type=1)
+    handler.nn_comparison(model_output_dir, undersample, logreg_type=2)
 
 if __name__ == '__main__':
     main()

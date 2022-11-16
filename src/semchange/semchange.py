@@ -1288,8 +1288,7 @@ class ParliamentDataHandler(object):
             self.retrofit_output_vec(model_output_dir = model_output_dir)
             self.retrofit_post_process(change_list, no_change_list, model_output_dir)
 
-    def logreg(self, model_output_dir, undersample = True, logreg_type = 0):
-        self.logger.info(f'RUNNING LOGREG. TYPE {logreg_type}')
+    def logreg(self, model_output_dir, undersample = True):
         if self.model_type in ['retrofit', 'retro']:
             self.logreg_data = self.cosine_similarity_df.copy()
         else:
@@ -1297,6 +1296,7 @@ class ParliamentDataHandler(object):
 
         scores_list = []
         for logreg_type in range(4):
+            self.logger.info(f'RUNNING LOGREG. TYPE {logreg_type}')
             if logreg_type == 0:
                 X = self.logreg_data['Cosine_similarity'].values.reshape(-1,1)
             elif logreg_type == 1:
@@ -1634,9 +1634,6 @@ def main(
         overwrite=overwrite_postprocess
     )
     handler.logreg(model_output_dir, undersample)
-    handler.logreg(model_output_dir, undersample, logreg_type=1)
-    handler.logreg(model_output_dir, undersample, logreg_type=2)
-    handler.logreg(model_output_dir, undersample, logreg_type=3)
     handler.nn_comparison(model_output_dir, undersample)
 
 if __name__ == '__main__':

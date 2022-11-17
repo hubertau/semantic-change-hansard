@@ -27,6 +27,11 @@ def main(scan_dir, outfile):
         precision = data['Precision'].iat[0]
         recall = data['Recall'].iat[0]
         f1_score = data['F1Score'].iat[0]
+        logreg_type = data['Logreg_type'].iat[0]
+        input_size = data['Input Size'].iat[0]
+        change_count = data['Train Change Count'].iat[0]
+        no_change_count = data['Train No Change Count'].iat[0]
+
 
         rows.append({
             "Model": model,
@@ -37,7 +42,11 @@ def main(scan_dir, outfile):
             "F1": f1_score,
             "Country": country,
             "Language": lang,
-            "Event": event
+            "Event": event,
+            "Logreg Type": logreg_type,
+            'Input Size': input_size,
+            'Train Change Count': change_count,
+            'Train No Change Count': no_change_count
         })
 
     mastertable = pd.DataFrame.from_records(rows)

@@ -1360,7 +1360,10 @@ class ParliamentDataHandler(object):
                 'Precision': f"{scores['test_precision'].mean():.3f}", 
                 'Recall': f"{scores['test_recall'].mean():.3f}",
                 'F1Score': f"{scores['test_f1_score'].mean():.3f}",
-                'Logreg_type': logreg_type
+                'Logreg_type': logreg_type,
+                'Input Size': X_train.shape[0],
+                'Train Change Count': np.sum(y_train=='change'),
+                'Train No Change Count': np.sum(y_train=='no_change')
             }
             scores_list.append(scoresDict)
 
@@ -1477,7 +1480,10 @@ class ParliamentDataHandler(object):
             'Precision':precision,
             'Recall':recall,
             'F1Score':f1_score_res,
-            'logreg_type': np.NaN
+            'logreg_type': np.NaN,
+            'Input Size': X_train.shape[0],
+            'Train Change Count': np.sum(y_train=='change'),
+            'Train No Change Count': np.sum(y_train=='no_change')
         }
         scoresDf = pd.DataFrame(scoresDict)
 

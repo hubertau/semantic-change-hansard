@@ -1303,6 +1303,7 @@ class ParliamentDataHandler(object):
             self.logger.info(f"Words are: {self.logreg_data[self.logreg_data['TotalFrequency']==0]['Word'].to_list()}")
             #filter out the rows
             self.logreg_data = self.logreg_data[self.logreg_data['TotalFrequency']>0]
+        self.logreg_data['log_freq'] = np.log10(self.logreg_data['TotalFrequency'].astype(float))
 
         scores_list = []
         for logreg_type in range(4):
@@ -1310,12 +1311,10 @@ class ParliamentDataHandler(object):
             if logreg_type == 0:
                 X = self.logreg_data['Cosine_similarity'].values.reshape(-1,1)
             elif logreg_type == 1:
-                self.logreg_data['log_freq'] = np.log10(self.logreg_data['TotalFrequency'])
                 X = self.logreg_data[['Cosine_similarity', 'log_freq']].values.reshape(-1,2)
             elif logreg_type == 2:
                 X = self.logreg_data[['Cosine_similarity','FrequencyRatio']].values.reshape(-1,2)
             elif logreg_type == 3:
-                self.logreg_data['log_freq'] = np.log10(self.logreg_data['TotalFrequency'])
                 X = self.logreg_data[['Cosine_similarity', 'log_freq', 'FrequencyRatio']].values.reshape(-1,3)
                 # self.logger.info(self.logreg_data)
                 self.logreg_data.to_csv(os.path.join(model_output_dir, 'logreg_df.csv'))

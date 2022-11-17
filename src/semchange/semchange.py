@@ -1255,10 +1255,10 @@ class ParliamentDataHandler(object):
 
             self.cosine_similarity_df.sort_values(by='Cosine_similarity', ascending=True, inplace=True)
 
-            self.words_of_interest = self.cosine_similarity_df[self.cosine_similarity_df['Word'].isin(change+no_change)].copy()
+            self.words_of_interest = self.cosine_similarity_df[self.cosine_similarity_df['Word'].isin(self.change+self.no_change)].copy()
 
-            self.words_of_interest.loc[self.words_of_interest['Word'].isin(change), 'semanticDifference'] = 'change'
-            self.words_of_interest.loc[self.words_of_interest['Word'].isin(no_change), 'semanticDifference'] = 'no_change'
+            self.words_of_interest.loc[self.words_of_interest['Word'].isin(self.change), 'semanticDifference'] = 'change'
+            self.words_of_interest.loc[self.words_of_interest['Word'].isin(self.no_change), 'semanticDifference'] = 'no_change'
 
             self.change_cossim = self.words_of_interest.loc[self.words_of_interest['semanticDifference'] == 'change', 'Cosine_similarity'] 
             self.no_change_cossim = self.words_of_interest.loc[self.words_of_interest['semanticDifference'] == 'no_change', 'Cosine_similarity'] 
@@ -1268,13 +1268,13 @@ class ParliamentDataHandler(object):
         elif self.model_type == 'speaker':
 
 
-            self.words_of_interest = self.cosine_similarity_df[self.cosine_similarity_df['Word'].isin(change+no_change)].copy()
+            self.words_of_interest = self.cosine_similarity_df[self.cosine_similarity_df['Word'].isin(self.change+self.no_change)].copy()
 
             self.words_of_interest.loc[:,'FrequencyRatio'] = self.words_of_interest['Frequency_t1']/self.words_of_interest['Frequency_t2']
             self.words_of_interest.loc[:,'TotalFrequency'] = self.words_of_interest['Frequency_t1'] + self.words_of_interest['Frequency_t2']
 
-            self.words_of_interest.loc[self.words_of_interest['Word'].isin(change), 'semanticDifference'] = 'change'
-            self.words_of_interest.loc[self.words_of_interest['Word'].isin(no_change), 'semanticDifference'] = 'no_change'
+            self.words_of_interest.loc[self.words_of_interest['Word'].isin(self.change), 'semanticDifference'] = 'change'
+            self.words_of_interest.loc[self.words_of_interest['Word'].isin(self.no_change), 'semanticDifference'] = 'no_change'
 
             self.words_of_interest.sort_values(by='Cosine_similarity')
 
@@ -1284,9 +1284,9 @@ class ParliamentDataHandler(object):
 
         elif self.model_type in ['retrofit', 'retro']:
 
-            self.words_of_interest = change + no_change
+            self.words_of_interest = self.change + self.no_change
 
-    def postprocess(self, change_list, no_change_list, model_output_dir, workers=10, overwrite=False)->None:
+    def postprocess(self, model_output_dir, workers=10, overwrite=False)->None:
         self.logger.info("POSTPROCESS: BEGIN")
         if self.model_type == 'speaker':
             self.process_speaker(model_output_dir, overwrite=overwrite)
@@ -1297,7 +1297,7 @@ class ParliamentDataHandler(object):
             self.retrofit_main_create_synonyms()
             self.retrofit_create_input_vectors(workers = workers, overwrite=overwrite)
             self.retrofit_output_vec(model_output_dir = model_output_dir)
-            self.retrofit_post_process(change_list, no_change_list, model_output_dir)
+            self.retrofit_post_process(self.change, self.no_change, model_output_dir)
 
     def logreg(self, model_output_dir, undersample = True):
         if self.model_type in ['retrofit', 'retro']:

@@ -1404,8 +1404,8 @@ class ParliamentDataHandler(object):
         lengthOverlap = []
 
         for index in (self.words_of_interest['neighboursInT1'].index):
-            neighboursT1 = self.words_of_interest.at[index, 'neighboursInT1'].item()
-            neighboursT2 = self.words_of_interest.at[index, 'neighboursInT2'].item()
+            neighboursT1 = self.words_of_interest.at[index, 'neighboursInT1']
+            neighboursT2 = self.words_of_interest.at[index, 'neighboursInT2']
             lengthOverlap.append(len(
                 set(neighboursT1).intersection(set(neighboursT2))
             ))

@@ -98,9 +98,11 @@ class ParliamentDataHandler(object):
         self.data_t2 = self.unsplit_data[(self.unsplit_data['datetime'] > date) & (self.unsplit_data['datetime'] < rightbound)]
         self.split_complete = True
 
-    def preprocess(self, model = None, model_output_dir = None, retrofit_outdir=None, overwrite=None):
+    def preprocess(self, change = None, no_change = None, model = None, model_output_dir = None, retrofit_outdir=None, overwrite=None):
         """TODO: Use this function to unify the retrofit prep, the tokenising, splitting of speeches, etc. so this is not duplicated in subsequent processes"""
         assert model in ['retrofit', 'retro', 'whole', 'speaker']
+        self.change = change
+        self.no_change = no_change
         self.model_type = model
         if self.model_type in ['retrofit', 'retro']:
             self.logger.info(f'PREPROCESS: Running preprocessing for retrofit.')
@@ -1098,6 +1100,15 @@ class ParliamentDataHandler(object):
                         skipped += 1
                         continue
 
+                    # Skip if not containing correct vocab
+                    vocab_of_interest = set(self.change + self.no_change)
+                    req_size = len(vocab_of_interest)
+                    overlap = vocab_of_interest.intersection(set(model.wv.index_to_key))/req_size
+                    if overlap<0.5:
+                        skipped += 1
+                        self.logger.info(f'Modelling: Skipped {row.df_name} due to not enough overlap with words of interest. Overlap: {overlap:.2f}')
+                        continue
+
                     if count % 100 == 0:
                         self.logger.info(f'MODELLING - {count}/{len(self.retrofit_prep_df)} = {100*count/len(self.retrofit_prep_df):.2f}% complete')
 
@@ -1113,6 +1124,7 @@ class ParliamentDataHandler(object):
                     #model.save(os.path.join(models_folder, modelName))
                 else:
                     self.retrofit_model_paths.append(savepath)
+                    count += 1
 
             self.logger.info(f"MODELLING - RETROFIT - {skipped} out of {count}  models skipped due to vocab size")
 
@@ -1220,10 +1232,7 @@ class ParliamentDataHandler(object):
                     fout.write(gensim.utils.to_utf8("%s %s\n" % (word, ' '.join(repr(val) for val in row))))
 
 
-    def woi(self, change, no_change):
-
-        self.change = change
-        self.no_change = no_change
+    def woi(self):
 
         if self.model_type == 'whole':
 
@@ -1282,7 +1291,7 @@ class ParliamentDataHandler(object):
         if self.model_type == 'speaker':
             self.process_speaker(model_output_dir, overwrite=overwrite)
 
-        self.woi(change_list, no_change_list)
+        self.woi()
 
         if self.model_type in ['retrofit', 'retro']:
             self.retrofit_main_create_synonyms()
@@ -1633,6 +1642,8 @@ def main(
 
     # unified
     handler.preprocess(
+        change = change_list,
+        no_change = no_change_list,
         model = model,
         model_output_dir = model_output_dir,
         retrofit_outdir=retrofit_outdir,
@@ -1644,8 +1655,6 @@ def main(
         min_vocab_size=min_vocab_size
     )
     handler.postprocess(
-        change_list,
-        no_change_list,
         model_output_dir,
         workers = 10,
         overwrite=overwrite_postprocess

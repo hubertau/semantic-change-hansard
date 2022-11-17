@@ -1295,6 +1295,14 @@ class ParliamentDataHandler(object):
             self.logreg_data = self.cosine_similarity_df.copy()
         else:
             self.logreg_data = self.words_of_interest.copy()
+    
+        # drop rows where total frequency is 0
+        zero_freq = len(self.logreg_data['TotalFrequency']==0)
+        if zero_freq > 0:
+            self.logger.info(f'{zero_freq} number of 0 frequency words detected')
+            self.logger.info(f"Words are: {self.logreg_data[self.logreg_data['TotalFrequency']==0]['Word'].to_list()}")
+            #filter out the rows
+            self.logreg_data = self.logreg_data[self.logreg_data['TotalFrequency']>0]
 
         scores_list = []
         for logreg_type in range(4):

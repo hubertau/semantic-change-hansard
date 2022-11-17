@@ -114,7 +114,7 @@ class ParliamentDataHandler(object):
         output = Counter()
         for model_path in self.retrofit_model_paths:
             if time in model_path:
-                model = gensim.models.Word2vec.load(model_path)
+                model = gensim.models.Word2Vec.load(model_path)
                 for word in word_list:
                     output[word] += model.wv.get_vecattr(word, 'count')
         return output 
@@ -146,82 +146,82 @@ class ParliamentDataHandler(object):
                 first = False
             else:
                 total_words.update(model.wv.index_to_key)
-        self.logger.info(f'PREPROCESS - SPEAKER - Total words: {len(total_words)}')
+        self.logger.info(f'POSTPROCESS - SPEAKER - Total words: {len(total_words)}')
 
         # print, for informational purposes, the number of models that are over the threshold
-        self.logger.info(f'PREPROCESS - SPEAKER - Number of valid models: {len(self.valid_split_speeches_by_mp)}')
+        self.logger.info(f'POSTPROCESS - SPEAKER - Number of valid models: {len(self.valid_split_speeches_by_mp)}')
 
         avg_vec_savepath_t1 = os.path.join(model_output_dir,'average_vecs_t1.bin')
         avg_vec_savepath_t2 = os.path.join(model_output_dir,'average_vecs_t2.bin')
 
-        if ((os.path.isfile(avg_vec_savepath_t1) or os.path.isfile(avg_vec_savepath_t2)) and overwrite) or not (os.path.isfile(avg_vec_savepath_t1) and os.path.isfile(avg_vec_savepath_t2)):
-            average_vecs = {
-                't1': {},
-                't2': {}
-            }
-            self.cosine_similarity_df = pd.DataFrame(columns = (
-                'Word',
-                'Frequency_t1',
-                'Frequency_t2',
-                'Cosine_similarity'
-            ))
-            self.logger.info(f'PREPROCESS - SPEAKER - CALCULATING AVERAGE VECTORS')
-            for word in total_words:
+        # if ((os.path.isfile(avg_vec_savepath_t1) or os.path.isfile(avg_vec_savepath_t2)) and overwrite) or not (os.path.isfile(avg_vec_savepath_t1) and os.path.isfile(avg_vec_savepath_t2)):
+        average_vecs = {
+            't1': {},
+            't2': {}
+        }
+        self.cosine_similarity_df = pd.DataFrame(columns = (
+            'Word',
+            'Frequency_t1',
+            'Frequency_t2',
+            'Cosine_similarity'
+        ))
+        self.logger.info(f'PREPROCESS - SPEAKER - CALCULATING AVERAGE VECTORS')
+        for word in total_words:
+            if self.verbosity > 0:
+                self.logger.info(f'PREPROCESS - SPEAKER - getting average vector for {word}')
+            avgVecT1, freq_t1 = self.computeAvgVec(word, time='t1')
+            avgVecT2, freq_t2 = self.computeAvgVec(word, time='t2')
+
+            if(np.sum(avgVecT1)==0 or np.sum(avgVecT2)==0):
                 if self.verbosity > 0:
-                    self.logger.info(f'PREPROCESS - SPEAKER - getting average vector for {word}')
-                avgVecT1, freq_t1 = self.computeAvgVec(word, time='t1')
-                avgVecT2, freq_t2 = self.computeAvgVec(word, time='t2')
+                    print(str(word) + ' Word not found')
+                continue
+            else:
+                # build results of average vec to save.
+                average_vecs['t1'][word] = avgVecT1
+                average_vecs['t2'][word] = avgVecT2
 
-                if(np.sum(avgVecT1)==0 or np.sum(avgVecT2)==0):
-                    if self.verbosity > 0:
-                        print(str(word) + ' Word not found')
-                    continue
-                else:
-                    # build results of average vec to save.
-                    average_vecs['t1'][word] = avgVecT1
-                    average_vecs['t2'][word] = avgVecT2
-
-                    # Cos similarity between averages
-                    cosSimilarity = self.cosine_similarity(avgVecT1, avgVecT2)
-                    insert_row = {
-                        "Word": word,
-                        "Frequency_t1": freq_t1,
-                        "Frequency_t2": freq_t2,
-                        "Cosine_similarity": cosSimilarity
-                    }
-
-                    self.cosine_similarity_df = pd.concat([self.cosine_similarity_df, pd.DataFrame([insert_row])])
-
-            self._save_word2vec_format(
-                fname = avg_vec_savepath_t1,
-                vocab = average_vecs['t1'],
-                vector_size = average_vecs['t1'][list(average_vecs['t1'].keys())[0]].shape[0]
-            )
-            self.logger.info(f'PREPROCESS - SPEAKER - Average vectors for t1 saved to {avg_vec_savepath_t1}')
-            self._save_word2vec_format(
-                fname = avg_vec_savepath_t2,
-                vocab = average_vecs['t2'],
-                vector_size = average_vecs['t2'][list(average_vecs['t2'].keys())[0]].shape[0]
-            )
-            self.logger.info(f'PREPROCESS - SPEAKER - Average vectors for t2 saved to {avg_vec_savepath_t2}')
-
-            self.model1 = gensim.models.KeyedVectors.load_word2vec_format(avg_vec_savepath_t1, binary=True)
-            self.model2 = gensim.models.KeyedVectors.load_word2vec_format(avg_vec_savepath_t2, binary=True)
-
-        else:
-            self.model1 = gensim.models.KeyedVectors.load_word2vec_format(avg_vec_savepath_t1, binary=True)
-            self.logger.info(f'PREPROCESS - SPEAKER - Average vectors for t1 loaded in from {avg_vec_savepath_t1}')
-            self.model2 = gensim.models.KeyedVectors.load_word2vec_format(avg_vec_savepath_t2, binary=True)
-            self.logger.info(f'PREPROCESS - SPEAKER - Average vectors for t2 loaded in from {avg_vec_savepath_t2}')
-
-            self.cosine_similarity_df = pd.DataFrame(columns = ('Word', 'Cosine_similarity'))
-            for word in self.model1.index_to_key:
-                avgVecT1 = self.model1[word]
-                avgVecT2 = self.model2[word]
-
+                # Cos similarity between averages
                 cosSimilarity = self.cosine_similarity(avgVecT1, avgVecT2)
-                insert_row = {'Word': word, 'Cosine_similarity': cosSimilarity}
-                self.cosine_similarity_df = pd.concat([self.cosine_similarity_df,pd.DataFrame([insert_row])], axis=0)
+                insert_row = {
+                    "Word": word,
+                    "Frequency_t1": freq_t1,
+                    "Frequency_t2": freq_t2,
+                    "Cosine_similarity": cosSimilarity
+                }
+
+                self.cosine_similarity_df = pd.concat([self.cosine_similarity_df, pd.DataFrame([insert_row])], axis=0)
+
+        self._save_word2vec_format(
+            fname = avg_vec_savepath_t1,
+            vocab = average_vecs['t1'],
+            vector_size = average_vecs['t1'][list(average_vecs['t1'].keys())[0]].shape[0]
+        )
+        self.logger.info(f'PREPROCESS - SPEAKER - Average vectors for t1 saved to {avg_vec_savepath_t1}')
+        self._save_word2vec_format(
+            fname = avg_vec_savepath_t2,
+            vocab = average_vecs['t2'],
+            vector_size = average_vecs['t2'][list(average_vecs['t2'].keys())[0]].shape[0]
+        )
+        self.logger.info(f'PREPROCESS - SPEAKER - Average vectors for t2 saved to {avg_vec_savepath_t2}')
+
+        self.model1 = gensim.models.KeyedVectors.load_word2vec_format(avg_vec_savepath_t1, binary=True)
+        self.model2 = gensim.models.KeyedVectors.load_word2vec_format(avg_vec_savepath_t2, binary=True)
+
+        # else:
+        #     self.model1 = gensim.models.KeyedVectors.load_word2vec_format(avg_vec_savepath_t1, binary=True)
+        #     self.logger.info(f'PREPROCESS - SPEAKER - Average vectors for t1 loaded in from {avg_vec_savepath_t1}')
+        #     self.model2 = gensim.models.KeyedVectors.load_word2vec_format(avg_vec_savepath_t2, binary=True)
+        #     self.logger.info(f'PREPROCESS - SPEAKER - Average vectors for t2 loaded in from {avg_vec_savepath_t2}')
+
+        #     self.cosine_similarity_df = pd.DataFrame(columns = ('Word', 'Cosine_similarity'))
+        #     for word in self.model1.index_to_key:
+        #         avgVecT1 = self.model1[word]
+        #         avgVecT2 = self.model2[word]
+
+        #         cosSimilarity = self.cosine_similarity(avgVecT1, avgVecT2)
+        #         insert_row = {'Word': word, 'Cosine_similarity': cosSimilarity}
+        #         self.cosine_similarity_df = pd.concat([self.cosine_similarity_df,pd.DataFrame([insert_row])], axis=0)
 
     def _intersection_align_gensim(self, m1, m2, words=None):
         """
@@ -1261,8 +1261,8 @@ class ParliamentDataHandler(object):
 
             self.words_of_interest = self.cosine_similarity_df[self.cosine_similarity_df['Word'].isin(change+no_change)].copy()
 
-            self.cosine_similarity_df.loc[:,'FrequencyRatio'] = self.cosine_similarity_df['Frequency_t1']/self.cosine_similarity_df['Frequency_t2']
-            self.cosine_similarity_df.loc[:,'TotalFrequency'] = self.cosine_similarity_df['Frequency_t1'] + self.cosine_similarity_df['Frequency_t2']
+            self.words_of_interest.loc[:,'FrequencyRatio'] = self.words_of_interest['Frequency_t1']/self.words_of_interest['Frequency_t2']
+            self.words_of_interest.loc[:,'TotalFrequency'] = self.words_of_interest['Frequency_t1'] + self.words_of_interest['Frequency_t2']
 
             self.words_of_interest.loc[self.words_of_interest['Word'].isin(change), 'semanticDifference'] = 'change'
             self.words_of_interest.loc[self.words_of_interest['Word'].isin(no_change), 'semanticDifference'] = 'no_change'
@@ -1280,7 +1280,7 @@ class ParliamentDataHandler(object):
     def postprocess(self, change_list, no_change_list, model_output_dir, workers=10, overwrite=False)->None:
         self.logger.info("POSTPROCESS: BEGIN")
         if self.model_type == 'speaker':
-            self.process_speaker(model_output_dir)
+            self.process_speaker(model_output_dir, overwrite=overwrite)
 
         self.woi(change_list, no_change_list)
 

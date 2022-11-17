@@ -1419,8 +1419,8 @@ class ParliamentDataHandler(object):
         #     lengthOverlap.append(len(
         #         set(neighboursT1).intersection(set(neighboursT2))
         #     ))
-
-        self.words_of_interest['overlappingNeighbours'] = self.words_of_interest.apply(lambda row: len(set(row['neighboursInT1'].intersection(set(row['neighboursInT2'])))), axis=1)
+        self.logger.info(self.words_of_interest)
+        self.words_of_interest['overlappingNeighbours'] = self.words_of_interest.apply(lambda row: len(set(row['neighboursInT1']).intersection(set(row['neighboursInT2']))), axis=1)
 
         self.words_of_interest[self.words_of_interest['semanticDifference']=='change']['overlappingNeighbours'].describe()
         self.words_of_interest[self.words_of_interest['semanticDifference']=='no_change']['overlappingNeighbours'].describe()

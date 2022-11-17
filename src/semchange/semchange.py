@@ -1372,8 +1372,8 @@ class ParliamentDataHandler(object):
 
     def nn_comparison(self, model_output_dir, undersample = True):
         self.logger.info(f'Running Nearest Neighbours Comparison')
-        # neighboursInT1 = []
-        # neighboursInT2 = []
+        neighboursInT1 = []
+        neighboursInT2 = []
 
         if self.model_type in ['retrofit', 'retro']:
             self.words_of_interest = self.cosine_similarity_df.copy()
@@ -1388,18 +1388,14 @@ class ParliamentDataHandler(object):
                 y = self.model2.wv.similar_by_word(row.Word,10)
 
             x = [tup[0] for tup in x]
-            if not x:
-                x = []
             self.logger.debug(row.Word, x)
             y = [tup[0] for tup in y]
-            if not y:
-                y = []
 
-            self.words_of_interest.at[row.Index, 'neighboursInT1'] = pd.Series([x])
-            self.words_of_interest.at[row.Index, 'neighboursInT2'] = pd.Series([y])
+            # self.words_of_interest.at[row.Index, 'neighboursInT1'] = pd.Series([x])
+            # self.words_of_interest.at[row.Index, 'neighboursInT2'] = pd.Series([y])
 
-        # self.words_of_interest['neighboursInT1'] = neighboursInT1
-        # self.words_of_interest['neighboursInT2'] = neighboursInT2
+        self.words_of_interest['neighboursInT1'] = neighboursInT1
+        self.words_of_interest['neighboursInT2'] = neighboursInT2
 
         #words_of_interest['overlappingNeighbours'] = ?
         #intersectingNeighbs = set(words_of_interest['neighboursInT1'].to_list()).intersect(words_of_interest['neighboursInT2'].to_list())

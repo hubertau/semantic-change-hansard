@@ -1388,8 +1388,12 @@ class ParliamentDataHandler(object):
                 y = self.model2.wv.similar_by_word(row.Word,10)
 
             x = [tup[0] for tup in x]
+            if not x:
+                x = []
             self.logger.debug(row.Word, x)
             y = [tup[0] for tup in y]
+            if not y:
+                y = []
 
             self.words_of_interest.at[row.Index, 'neighboursInT1'] = pd.Series([x])
             self.words_of_interest.at[row.Index, 'neighboursInT2'] = pd.Series([y])

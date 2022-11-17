@@ -1398,8 +1398,8 @@ class ParliamentDataHandler(object):
                 y = self.model2.wv.similar_by_word(row.Word,10)
 
             x = [tup[0] for tup in x]
-            self.logger.debug(row.Word, x)
             y = [tup[0] for tup in y]
+            self.logger.debug(row.Word, x, y)
             neighboursInT1.append(x)
             neighboursInT2.append(y)
 
@@ -1411,16 +1411,16 @@ class ParliamentDataHandler(object):
 
         #words_of_interest['overlappingNeighbours'] = ?
         #intersectingNeighbs = set(words_of_interest['neighboursInT1'].to_list()).intersect(words_of_interest['neighboursInT2'].to_list())
-        lengthOverlap = []
+        # lengthOverlap = []
 
-        for index in (self.words_of_interest['neighboursInT1'].index):
-            neighboursT1 = self.words_of_interest.at[index, 'neighboursInT1']
-            neighboursT2 = self.words_of_interest.at[index, 'neighboursInT2']
-            lengthOverlap.append(len(
-                set(neighboursT1).intersection(set(neighboursT2))
-            ))
+        # for index in self.words_of_interest['neighboursInT1'].index):
+        #     neighboursT1 = self.words_of_interest.at[index, 'neighboursInT1']
+        #     neighboursT2 = self.words_of_interest.at[index, 'neighboursInT2']
+        #     lengthOverlap.append(len(
+        #         set(neighboursT1).intersection(set(neighboursT2))
+        #     ))
 
-        self.words_of_interest['overlappingNeighbours'] = lengthOverlap
+        self.words_of_interest['overlappingNeighbours'] = self.words_of_interest.apply(lambda row: len(set(row['neighboursInT1'].intersection(set(row['neighboursInT2'])))))
 
         self.words_of_interest[self.words_of_interest['semanticDifference']=='change']['overlappingNeighbours'].describe()
         self.words_of_interest[self.words_of_interest['semanticDifference']=='no_change']['overlappingNeighbours'].describe()

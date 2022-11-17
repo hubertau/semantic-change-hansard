@@ -1103,7 +1103,7 @@ class ParliamentDataHandler(object):
                     # Skip if not containing correct vocab
                     vocab_of_interest = set(self.change + self.no_change)
                     req_size = len(vocab_of_interest)
-                    overlap = vocab_of_interest.intersection(set(model.wv.index_to_key))/req_size
+                    overlap = len(vocab_of_interest.intersection(set(model.wv.index_to_key)))/req_size
                     if overlap<0.5:
                         skipped += 1
                         self.logger.info(f'Modelling: Skipped {row.df_name} due to not enough overlap with words of interest. Overlap: {overlap:.2f}')

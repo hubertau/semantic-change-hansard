@@ -1251,7 +1251,6 @@ class ParliamentDataHandler(object):
             self.words_of_interest.loc[self.words_of_interest['Word'].isin(change), 'semanticDifference'] = 'change'
             self.words_of_interest.loc[self.words_of_interest['Word'].isin(no_change), 'semanticDifference'] = 'no_change'
 
-            print('words of interest complete')
             self.change_cossim = self.words_of_interest.loc[self.words_of_interest['semanticDifference'] == 'change', 'Cosine_similarity'] 
             self.no_change_cossim = self.words_of_interest.loc[self.words_of_interest['semanticDifference'] == 'no_change', 'Cosine_similarity'] 
 
@@ -1342,25 +1341,25 @@ class ParliamentDataHandler(object):
 
             num_samples = min(np.sum(y=='change'),np.sum(y=='no_change'))
             scores = cross_validate(kf, X, y, cv=min(10, num_samples), scoring=scoring,error_score='raise')
-            accuracy, precision, recall, f1_score_res = [], [], [], []
+            # accuracy, precision, recall, f1_score_res = [], [], [], []
 
             self.logger.info(f'Accuracy: {scores["test_accuracy"].mean()}')
             self.logger.info(f'Precision, {scores["test_precision"].mean()}')
             self.logger.info(f'Recall, {scores["test_recall"].mean()}')
             self.logger.info(f'F1 Score, {scores["test_f1_score"].mean()}')
 
-            accuracy.append(scores['test_accuracy'].mean())
-            precision.append(scores['test_precision'].mean())
-            recall.append(scores['test_recall'].mean())
-            f1_score_res.append(scores['test_f1_score'].mean())
+            # accuracy.append(scores['test_accuracy'].mean())
+            # precision.append(scores['test_precision'].mean())
+            # recall.append(scores['test_recall'].mean())
+            # f1_score_res.append(scores['test_f1_score'].mean())
 
             scoresDict = {
-                'Model': [f'{self.model_type}'],
-                'Basis': ['Cosine Similarity'],
-                'Accuracy':accuracy,
-                'Precision':precision,
-                'Recall':recall,
-                'F1Score':f1_score_res,
+                'Model': f'{self.model_type}',
+                'Basis': 'Cosine Similarity',
+                'Accuracy': f"{scores['test_accuracy'].mean():.3f}",
+                'Precision': f"{scores['test_precision'].mean():.3f}", 
+                'Recall': f"{scores['test_recall'].mean():.3f}",
+                'F1Score': f"{scores['test_f1_score'].mean():.3f}",
                 'Logreg_type': logreg_type
             }
             scores_list.append(scoresDict)
@@ -1392,8 +1391,8 @@ class ParliamentDataHandler(object):
             self.logger.debug(row.Word, x)
             y = [tup[0] for tup in y]
 
-            self.words_of_interest.at[row.Index, 'neighboursInT1'] = x
-            self.words_of_interest.at[row.Index, 'neighboursInT2'] = y
+            self.words_of_interest.at[row.Index, 'neighboursInT1'] = pd.Series([x])
+            self.words_of_interest.at[row.Index, 'neighboursInT2'] = pd.Series([y])
 
         # self.words_of_interest['neighboursInT1'] = neighboursInT1
         # self.words_of_interest['neighboursInT2'] = neighboursInT2
@@ -1403,8 +1402,8 @@ class ParliamentDataHandler(object):
         lengthOverlap = []
 
         for index in (self.words_of_interest['neighboursInT1'].index):
-            neighboursT1 = self.words_of_interest.at[index, 'neighboursInT1']
-            neighboursT2 = self.words_of_interest.at[index, 'neighboursInT2']
+            neighboursT1 = self.words_of_interest.at[index, 'neighboursInT1'].item()
+            neighboursT2 = self.words_of_interest.at[index, 'neighboursInT2'].item()
             lengthOverlap.append(len(
                 set(neighboursT1).intersection(set(neighboursT2))
             ))

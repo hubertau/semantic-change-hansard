@@ -118,7 +118,10 @@ class ParliamentDataHandler(object):
             if time in model_path:
                 model = gensim.models.Word2Vec.load(model_path)
                 for word in word_list:
-                    output[word] += model.wv.get_vecattr(word, 'count')
+                    try:
+                        output[word] += model.wv.get_vecattr(word, 'count')
+                    except:
+                        continue
         return output 
 
     def process_speaker(self, model_output_dir, min_vocab_size=10000, overwrite=False):
@@ -921,7 +924,7 @@ class ParliamentDataHandler(object):
                 vec =[float(v) for v in vec]
                 dictKeyVector[synKey]=vec
                 npVec = np.array(dictKeyVector[synKey])
-        self.logger.info('Count of vectors with fewer dimensions that we will not consider',count)
+        self.logger.info(f'Count of vectors with fewer dimensions that we will not consider: {count}')
         dfRetrofitted = pd.DataFrame({'vectorKey':list(dictKeyVector.keys()), 'vectors':list(dictKeyVector.values())})
 
         # Filtering down words of interest as per those present in our vectors 
@@ -1301,9 +1304,9 @@ class ParliamentDataHandler(object):
         self.woi()
 
         if self.model_type in ['retrofit', 'retro']:
-            self.retrofit_main_create_synonyms()
+            self.retrofit_main_create_synonyms(overwrite=overwrite)
             self.retrofit_create_input_vectors(workers = workers, overwrite=overwrite)
-            self.retrofit_output_vec(model_output_dir = model_output_dir)
+            self.retrofit_output_vec(model_output_dir = model_output_dir, overwrite=overwrite)
             self.retrofit_post_process(self.change, self.no_change, model_output_dir)
 
     def logreg(self, model_output_dir, undersample = True):

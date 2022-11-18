@@ -1081,6 +1081,7 @@ class ParliamentDataHandler(object):
             new = False
             count = 0
             skipped = 0
+            vocab_skipped = 0
             for row in self.retrofit_prep_df.itertuples(): 
 
                 savepath = os.path.join(outdir, row.df_name)
@@ -1095,18 +1096,17 @@ class ParliamentDataHandler(object):
                     )
 
                     count += 1
-                    # Skip if below minimum size
-                    if len(model.wv.index_to_key) < min_vocab_size:
-                        skipped += 1
-                        continue
-
                     # Skip if not containing correct vocab
                     vocab_of_interest = set(self.change + self.no_change)
                     req_size = len(vocab_of_interest)
                     overlap = len(vocab_of_interest.intersection(set(model.wv.index_to_key)))/req_size
                     if overlap<0.5:
-                        skipped += 1
+                        vocab_skipped += 1
                         self.logger.info(f'Modelling: Skipped {row.df_name} due to not enough overlap with words of interest. Overlap: {overlap:.2f}')
+                        continue
+                    # Skip if below minimum size
+                    if len(model.wv.index_to_key) < min_vocab_size:
+                        skipped += 1
                         continue
 
                     if count % 100 == 0:
@@ -1127,6 +1127,8 @@ class ParliamentDataHandler(object):
                     count += 1
 
             self.logger.info(f"MODELLING - RETROFIT - {skipped} out of {count}  models skipped due to vocab size")
+            self.logger.info(f"MODELLING - RETROFIT - {vocab_skipped} out of {count} models skipped due to insufficient overlap with vocab of interest")
+            self.logger.info(f"Total skipped: {vocab_skipped+skipped} out of {count} = {(vocab_skipped+skipped)/count:.2f}%")
 
             if new:
                 self.logger.info('MODELLING - RETROFIT - New models detected. Loading back in and running alignment')
@@ -1138,6 +1140,9 @@ class ParliamentDataHandler(object):
 
                     _ = self._smart_procrustes_align_gensim(model_current, model_next)
 
+                    current_common_vocab_size = len(set(model_current.wv.index_to_key).intersection(set(model_next.wv.index_to_key)))
+                    self.logger.info(f"MODELLING - ALIGNMENT - CURRENT COMMON VOCAB IS {current_common_vocab_size} after alignment at index {ind}, model: {model_path}")
+
                     if np.sum(check-model_current.wv[model_current.wv.index_to_key[0]])>0:
                         self.logger.warning('MODELLING - RETROFIT - PLEASE CHECK ALIGNMENT PROCEDURE')
                         return None
@@ -1145,6 +1150,8 @@ class ParliamentDataHandler(object):
                     model_current.save(model_path)
                     model_next.save(self.retrofit_model_paths[ind+1])
                 self.logger.info('MODELLING - RETROFIT - ALIGNMENT COMPLETE')
+                if current_common_vocab_size == 0:
+                    self.logger.error("MODELLING - RETROFIT - NO COMMON VOCAB LEFT OVER")
             else:
                 self.logger.info('MODELLING - RETROFIT - NO NEW MODELS GENERATED -> NO ALIGNMENT NECESSARY')
 

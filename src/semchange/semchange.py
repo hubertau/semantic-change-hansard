@@ -922,7 +922,7 @@ class ParliamentDataHandler(object):
                 count=count+1
             else:
                 vec =[float(v) for v in vec]
-                dictKeyVector[synKey]=vec
+                dictKeyVector[synKey]=np.array(vec)
                 npVec = np.array(dictKeyVector[synKey])
         self.logger.info(f'Count of vectors with fewer dimensions that we will not consider: {count}')
         dfRetrofitted = pd.DataFrame({'vectorKey':list(dictKeyVector.keys()), 'vectors':list(dictKeyVector.values())})

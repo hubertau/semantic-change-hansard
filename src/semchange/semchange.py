@@ -1414,8 +1414,14 @@ class ParliamentDataHandler(object):
         for row in self.words_of_interest.itertuples():
 
             if self.model_type in ['speaker', 'retrofit', 'retro']:
-                x = self.model1.similar_by_word(row.Word,10)
-                y = self.model2.similar_by_word(row.Word,10)
+                try:
+                    x = self.model1.similar_by_word(row.Word,10)
+                except KeyError:
+                    x = []
+                try:
+                    y = self.model2.similar_by_word(row.Word,10)
+                except KeyError:
+                    y = []
             elif self.model_type == 'whole':
                 x = self.model1.wv.similar_by_word(row.Word,10) 
                 y = self.model2.wv.similar_by_word(row.Word,10)

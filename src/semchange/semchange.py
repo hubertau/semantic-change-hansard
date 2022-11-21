@@ -993,7 +993,7 @@ class ParliamentDataHandler(object):
             self._save_word2vec_format(
                 fname = os.path.join(model_output_dir, f'retrofit_vecs_{t}.bin'),
                 vocab = vocab,
-                vector_size = vocab[list(vocab.keys())[0]].shape[0]
+                vector_size = np.array(vocab[list(vocab.keys())[0]]).shape[0]
             )
 
         self.model1 = gensim.models.KeyedVectors.load_word2vec_format(os.path.join(model_output_dir, f'retrofit_vecs_t1.bin'), binary=True)

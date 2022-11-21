@@ -944,8 +944,8 @@ class ParliamentDataHandler(object):
         ))
 
         # NOW WE ONLY HAVE THOSE WORDS HERE WHICH ARE PRESENT IN THE VECTORS.
-        t1Keys = [t for t in list(dictKeyVector.keys()) if 't1' in t]
-        t2Keys = [t for t in list(dictKeyVector.keys()) if 't2' in t]
+        # t1Keys = [t for t in list(dictKeyVector.keys()) if 't1' in t]
+        # t2Keys = [t for t in list(dictKeyVector.keys()) if 't2' in t]
         sims= []
 
         # Compute average of word in T1 and in T2 and store average vectors and cosine difference   
@@ -989,10 +989,11 @@ class ParliamentDataHandler(object):
 
         # Save into word2vec format for nn comparison
         for t in ['t1','t2']:
+            vocab = {k:v for k,v in dictKeyVector.items() if t in k}
             self._save_word2vec_format(
                 fname = os.path.join(model_output_dir, f'retrofit_vecs_{t}.bin'),
-                vocab = dictKeyVector[t],
-                vector_size = dictKeyVector[t][list(dictKeyVector[t].keys())[0]].shape[0]
+                vocab = vocab,
+                vector_size = vocab[list(vocab.keys())[0]].shape[0]
             )
 
         self.model1 = gensim.models.KeyedVectors.load_word2vec_format(os.path.join(model_output_dir, f'retrofit_vecs_t1.bin'), binary=True)

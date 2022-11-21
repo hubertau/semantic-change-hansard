@@ -1090,7 +1090,6 @@ class ParliamentDataHandler(object):
 
                 savepath = os.path.join(outdir, row.df_name)
                 if (os.path.isfile(savepath) and overwrite) or not os.path.isfile(savepath):
-                    new = True
                     model = gensim.models.Word2Vec(
                         row.tokens,
                         min_count=1,
@@ -1112,6 +1111,10 @@ class ParliamentDataHandler(object):
                     if len(model.wv.index_to_key) < min_vocab_size:
                         skipped += 1
                         continue
+
+                    if not new:
+                        new = True
+                        self.logger.info('New set to True')
 
                     if count % 100 == 0:
                         self.logger.info(f'MODELLING - {count}/{len(self.retrofit_prep_df)} = {100*count/len(self.retrofit_prep_df):.2f}% complete')

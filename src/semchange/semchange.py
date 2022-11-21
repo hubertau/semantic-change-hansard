@@ -1330,72 +1330,75 @@ class ParliamentDataHandler(object):
 
         scores_list = []
         for logreg_type in range(4):
-            self.logger.info(f'RUNNING LOGREG. TYPE {logreg_type}')
-            if logreg_type == 0:
-                X = self.logreg_data['Cosine_similarity'].values.reshape(-1,1)
-            elif logreg_type == 1:
-                X = self.logreg_data[['Cosine_similarity', 'log_freq']].values.reshape(-1,2)
-            elif logreg_type == 2:
-                X = self.logreg_data[['Cosine_similarity','FrequencyRatio']].values.reshape(-1,2)
-            elif logreg_type == 3:
-                X = self.logreg_data[['Cosine_similarity', 'log_freq', 'FrequencyRatio']].values.reshape(-1,3)
-                # self.logger.info(self.logreg_data)
-                self.logreg_data.to_csv(os.path.join(model_output_dir, 'logreg_df.csv'))
-            y = self.logreg_data['semanticDifference']
+            try:
+                self.logger.info(f'RUNNING LOGREG. TYPE {logreg_type}')
+                if logreg_type == 0:
+                    X = self.logreg_data['Cosine_similarity'].values.reshape(-1,1)
+                elif logreg_type == 1:
+                    X = self.logreg_data[['Cosine_similarity', 'log_freq']].values.reshape(-1,2)
+                elif logreg_type == 2:
+                    X = self.logreg_data[['Cosine_similarity','FrequencyRatio']].values.reshape(-1,2)
+                elif logreg_type == 3:
+                    X = self.logreg_data[['Cosine_similarity', 'log_freq', 'FrequencyRatio']].values.reshape(-1,3)
+                    # self.logger.info(self.logreg_data)
+                    self.logreg_data.to_csv(os.path.join(model_output_dir, 'logreg_df.csv'))
+                y = self.logreg_data['semanticDifference']
 
-            if undersample:
-                undersample = RandomUnderSampler(sampling_strategy=1.0)
+                if undersample:
+                    undersample = RandomUnderSampler(sampling_strategy=1.0)
 
-                X_over, y_over = undersample.fit_resample(X, y)
-                X, y = X_over, y_over
+                    X_over, y_over = undersample.fit_resample(X, y)
+                    X, y = X_over, y_over
 
-            # CHANGE_PROPORTION = np.sum(y == 'change')/len(y)
-            CHANGE_PROPORTION = 0.25
-            stratification = np.random.choice(['change','no_change'],size=(len(y),), p=[CHANGE_PROPORTION, 1-CHANGE_PROPORTION])
-            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=2, stratify=stratification)
+                # CHANGE_PROPORTION = np.sum(y == 'change')/len(y)
+                CHANGE_PROPORTION = 0.25
+                stratification = np.random.choice(['change','no_change'],size=(len(y),), p=[CHANGE_PROPORTION, 1-CHANGE_PROPORTION])
+                X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=2, stratify=stratification)
 
-            self.logger.info(f'Y value counts: {y.value_counts()}')
-            self.logger.info(f'Y train value counts: {y_train.value_counts()}')
+                self.logger.info(f'Y value counts: {y.value_counts()}')
+                self.logger.info(f'Y train value counts: {y_train.value_counts()}')
 
-            logreg = LogisticRegression()
+                logreg = LogisticRegression()
 
-            self.logger.info(X_train)
-            kf = logreg.fit(X_train, y_train)
+                self.logger.info(X_train)
+                kf = logreg.fit(X_train, y_train)
 
-            y_pred = logreg.predict(X_test)
+                y_pred = logreg.predict(X_test)
 
-            scoring = {'accuracy' : make_scorer(accuracy_score), 
-                    'precision' : make_scorer(precision_score,pos_label='change'),
-                    'recall' : make_scorer(recall_score,pos_label='change'), 
-                    'f1_score' : make_scorer(f1_score,pos_label='change')}
+                scoring = {'accuracy' : make_scorer(accuracy_score), 
+                        'precision' : make_scorer(precision_score,pos_label='change'),
+                        'recall' : make_scorer(recall_score,pos_label='change'), 
+                        'f1_score' : make_scorer(f1_score,pos_label='change')}
 
-            num_samples = min(np.sum(y=='change'),np.sum(y=='no_change'))
-            scores = cross_validate(kf, X, y, cv=min(10, num_samples), scoring=scoring,error_score='raise')
-            # accuracy, precision, recall, f1_score_res = [], [], [], []
+                num_samples = min(np.sum(y=='change'),np.sum(y=='no_change'))
+                scores = cross_validate(kf, X, y, cv=min(10, num_samples), scoring=scoring,error_score='raise')
+                # accuracy, precision, recall, f1_score_res = [], [], [], []
 
-            self.logger.info(f'Accuracy: {scores["test_accuracy"].mean()}')
-            self.logger.info(f'Precision, {scores["test_precision"].mean()}')
-            self.logger.info(f'Recall, {scores["test_recall"].mean()}')
-            self.logger.info(f'F1 Score, {scores["test_f1_score"].mean()}')
+                self.logger.info(f'Accuracy: {scores["test_accuracy"].mean()}')
+                self.logger.info(f'Precision, {scores["test_precision"].mean()}')
+                self.logger.info(f'Recall, {scores["test_recall"].mean()}')
+                self.logger.info(f'F1 Score, {scores["test_f1_score"].mean()}')
 
-            # accuracy.append(scores['test_accuracy'].mean())
-            # precision.append(scores['test_precision'].mean())
-            # recall.append(scores['test_recall'].mean())
-            # f1_score_res.append(scores['test_f1_score'].mean())
+                # accuracy.append(scores['test_accuracy'].mean())
+                # precision.append(scores['test_precision'].mean())
+                # recall.append(scores['test_recall'].mean())
+                # f1_score_res.append(scores['test_f1_score'].mean())
 
-            scoresDict = {
-                'Model': f'{self.model_type}',
-                'Basis': 'Cosine Similarity',
-                'Accuracy': f"{scores['test_accuracy'].mean():.3f}",
-                'Precision': f"{scores['test_precision'].mean():.3f}", 
-                'Recall': f"{scores['test_recall'].mean():.3f}",
-                'F1Score': f"{scores['test_f1_score'].mean():.3f}",
-                'Logreg_type': logreg_type,
-                'Input Size': X_train.shape[0],
-                'Train Change Count': np.sum(y_train=='change'),
-                'Train No Change Count': np.sum(y_train=='no_change')
-            }
-            scores_list.append(scoresDict)
+                scoresDict = {
+                    'Model': f'{self.model_type}',
+                    'Basis': 'Cosine Similarity',
+                    'Accuracy': f"{scores['test_accuracy'].mean():.3f}",
+                    'Precision': f"{scores['test_precision'].mean():.3f}", 
+                    'Recall': f"{scores['test_recall'].mean():.3f}",
+                    'F1Score': f"{scores['test_f1_score'].mean():.3f}",
+                    'Logreg_type': logreg_type,
+                    'Input Size': X_train.shape[0],
+                    'Train Change Count': np.sum(y_train=='change'),
+                    'Train No Change Count': np.sum(y_train=='no_change')
+                }
+                scores_list.append(scoresDict)
+            except Exception as e:
+                self.logger.error(e)
 
         scoresDf = pd.DataFrame.from_records(scores_list)
 

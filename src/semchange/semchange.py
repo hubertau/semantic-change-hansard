@@ -928,6 +928,9 @@ class ParliamentDataHandler(object):
                         if len(model.wv.index_to_key) < min_vocab_size:
                             skipped += 1
                             continue
+                        if not new:
+                            new = True
+                            self.logger.info('New set to True')
                         model.save(model_savepath)
                         if count % 100 == 0:
                             self.logger.info(f'MODELLING - {count}/{len(self.split_speeches_by_mp)} = {100*count/len(self.split_speeches_by_mp):.2f}% complete')

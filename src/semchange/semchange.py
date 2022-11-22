@@ -63,10 +63,10 @@ class ParliamentDataHandler(object):
             tokenizer = RegexpTokenizer(r'\w+')
             tokens = tokenizer.tokenize(sentence)
         elif isinstance(sentence, float):
-            self.logger.warning("Float detected in tokenization: {sentence}")
+            self.logger.warning(f"Float detected in tokenization: {sentence}")
             tokens = [sentence]
         elif isinstance(sentence, list):
-            self.logger.warning("List detected in tokenization: {sentence}")
+            self.logger.warning(f"List detected in tokenization: {sentence}")
             tokens = sentence
         return tokens
 

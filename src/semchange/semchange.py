@@ -177,10 +177,10 @@ class ParliamentDataHandler(object):
             'Frequency_t2',
             'Cosine_similarity'
         ))
-        self.logger.info(f'PREPROCESS - SPEAKER - CALCULATING AVERAGE VECTORS')
+        self.logger.info(f'POSTPROCESS - SPEAKER - CALCULATING AVERAGE VECTORS')
         for word in total_words:
             if self.verbosity > 0:
-                self.logger.info(f'PREPROCESS - SPEAKER - getting average vector for {word}')
+                self.logger.info(f'POSTPROCESS - SPEAKER - getting average vector for {word}')
             avgVecT1, freq_t1 = self.computeAvgVec(word, time='t1')
             avgVecT2, freq_t2 = self.computeAvgVec(word, time='t2')
 
@@ -209,13 +209,13 @@ class ParliamentDataHandler(object):
             vocab = average_vecs['t1'],
             vector_size = average_vecs['t1'][list(average_vecs['t1'].keys())[0]].shape[0]
         )
-        self.logger.info(f'PREPROCESS - SPEAKER - Average vectors for t1 saved to {avg_vec_savepath_t1}')
+        self.logger.info(f'POSTPROCESS - SPEAKER - Average vectors for t1 saved to {avg_vec_savepath_t1}')
         self._save_word2vec_format(
             fname = avg_vec_savepath_t2,
             vocab = average_vecs['t2'],
             vector_size = average_vecs['t2'][list(average_vecs['t2'].keys())[0]].shape[0]
         )
-        self.logger.info(f'PREPROCESS - SPEAKER - Average vectors for t2 saved to {avg_vec_savepath_t2}')
+        self.logger.info(f'POSTPROCESS - SPEAKER - Average vectors for t2 saved to {avg_vec_savepath_t2}')
 
         self.model1 = gensim.models.KeyedVectors.load_word2vec_format(avg_vec_savepath_t1, binary=True)
         self.model2 = gensim.models.KeyedVectors.load_word2vec_format(avg_vec_savepath_t2, binary=True)
@@ -1657,11 +1657,11 @@ def main(
     # process change lists
     change_list = []
     for i in change:
-        change_list.append(i.strip('\n').lower())
+        change_list.append(i.strip('\n').strip().lower())
     no_change_list = []
     if no_change:
         for i in no_change:
-            no_change_list.append(i.strip('\n').lower())
+            no_change_list.append(i.strip('\n').strip().lower())
 
     # instantiate parliament data handler
     handler = ParliamentDataHandler.from_csv(file, tokenized=False)

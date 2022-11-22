@@ -21,36 +21,37 @@ def main(scan_dir, outfile):
         else:
             model_type = 'nn' 
         country, lang, event = split_path[0].split('/')[-1].split('_')
-        try:
-            data = pd.read_csv(f)
-            model = data['Model'].iat[0]
-            accuracy = data['Accuracy'].iat[0]
-            precision = data['Precision'].iat[0]
-            recall = data['Recall'].iat[0]
-            f1_score = data['F1Score'].iat[0]
-            logreg_type = data['Logreg_type'].iat[0]
-            input_size = data['Input Size'].iat[0]
-            change_count = data['Train Change Count'].iat[0]
-            no_change_count = data['Train No Change Count'].iat[0]
+        data = pd.read_csv(f)
+        for row in data.itertuples():
+            try:
+                model = row.Model
+                accuracy = row.Accuracy
+                precision = row.Precision
+                recall = row.Recall
+                f1_score = row.F1Score
+                logreg_type = row.Logreg_type
+                input_size = row._9
+                change_count = row._10
+                no_change_count = row._11
 
 
-            rows.append({
-                "Model": model,
-                "Type": model_type,
-                "Accuracy": accuracy,
-                "Precision": precision,
-                "Recall": recall,
-                "F1": f1_score,
-                "Country": country,
-                "Language": lang,
-                "Event": event,
-                "Logreg Type": logreg_type,
-                'Input Size': input_size,
-                'Train Change Count': change_count,
-                'Train No Change Count': no_change_count
-            })
-        except:
-            print(f)
+                rows.append({
+                    "Model": model,
+                    "Type": model_type,
+                    "Accuracy": accuracy,
+                    "Precision": precision,
+                    "Recall": recall,
+                    "F1": f1_score,
+                    "Country": country,
+                    "Language": lang,
+                    "Event": event,
+                    "Logreg Type": logreg_type,
+                    'Input_Size': input_size,
+                    'Train_Change_Count': change_count,
+                    'Train_No_Change_Count': no_change_count
+                })
+            except:
+                print(row, f)
 
     mastertable = pd.DataFrame.from_records(rows)
     mastertable.to_csv(outfile)

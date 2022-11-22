@@ -58,7 +58,8 @@ class ParliamentDataHandler(object):
         return cls(df, tokenized=tokenized, data_filename=unsplit_data)
 
     def _tokenize_one_sentence(self, sentence):
-        sentence = sentence.lower()
+        if isinstance(sentence, str):
+            sentence = sentence.lower()
         tokenizer = RegexpTokenizer(r'\w+')
         tokens = tokenizer.tokenize(sentence)
         return tokens
@@ -1318,7 +1319,7 @@ class ParliamentDataHandler(object):
             self.logreg_data = self.cosine_similarity_df.copy()
         else:
             self.logreg_data = self.words_of_interest.copy()
-    
+
         # drop rows where total frequency is 0
         zero_freq = len(self.logreg_data['TotalFrequency']==0)
         if zero_freq > 0:

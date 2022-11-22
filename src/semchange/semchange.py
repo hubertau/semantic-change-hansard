@@ -328,57 +328,6 @@ class ParliamentDataHandler(object):
 
         return other_embed
 
-    # def split_speeches(self, by='party'):
-    #     """Function to split loaded data by party
-
-    #     Returns:
-    #         dictSpeechesbyParty (dict): dict of partty:
-    #     """
-
-
-    #     if by == 'party':
-    #         pass
-    #     elif by == 'mp':
-    #         by = 'speaker'
-    #     split_t1 = list(self.data_t1[by].unique())
-    #     split_t2 = list(self.data_t2[by].unique())
-    #     total_split = set(split_t1+split_t2)
-
-    #     splitspeeches = {}
-
-    #     for p in total_split:
-
-    #         for dfTime in ['df_t1','df_t2']:
-
-    #             tempDf = pd.DataFrame()
-    #             tempList = []
-    #             dfName = f"{dfTime}_{p}"
-
-    #             if(dfTime == 'df_t1'):
-    #                 tempDf = self.data_t1[self.data_t1[by]==p].copy()
-
-    #             elif (dfTime == 'df_t2'):
-    #                 tempDf = self.data_t2[self.data_t2[by]==p].copy()
-
-    #             if (tempDf.shape[0]==0):
-    #                 continue
-
-    #             # used to index 'Lemmas'
-    #             tempDf.loc[:,'Lemmas'] = tempDf['tokenized']
-    #             tempList.extend(tempDf['Lemmas'].to_list())
-    #             split = tempDf[by].iat[0]
-    #             party = tempDf['party'].iat[0]
-
-    #             #Flatten the list so it's not a list of lists
-    #             # 2022-10-10: This is the offending line that splits words into letters screwing up the subsequent stuff.
-    #             tempList = [item for sublist in tempList for item in sublist]
-
-    #             tempDf = pd.DataFrame([[split, tempList, party]],columns=[by, 'Lemmas', 'party'])
-    #             splitspeeches[dfName]= tempDf
-    #             splitspeeches[dfName]['df_name'] = dfName
-
-    #     return splitspeeches
-
     def split_speeches_df(self, by='party'):
         """Function to split loaded data by party
 
@@ -434,123 +383,6 @@ class ParliamentDataHandler(object):
 
         return splitspeeches
 
-    # def stem_and_lemmatize(self, change, outdir):
-
-    #     dictSpeechesByParty = self.split_speeches()
-    #     print('SPLIT BY PARTY COMPLETE')
-
-    #     partyTimeDf = pd.DataFrame(columns = ['party', 'Lemmas', 'df_name'])
-    #     for val in list(dictSpeechesByParty.values()):
-    #         partyTimeDf = partyTimeDf.append(val)
-
-    #     partyTimeDf['LengthLemmas'] = partyTimeDf.Lemmas.map(len)
-    #     partyTimeDf.agg(Max=('LengthLemmas', max), Min=('LengthLemmas', 'min'), Mean=('LengthLemmas', np.mean))
-
-    #     partyTimeDf = partyTimeDf.reset_index()
-    #     partyTimeDf['lemmas_delist'] = [','.join(map(str, l)) for l in partyTimeDf['Lemmas']]
-
-    #     # get overlapping words
-    #     overlappingWords = []
-    #     for ind in partyTimeDf.index:
-    #         partyVocabInTime = partyTimeDf.at[ind, 'Lemmas']
-
-    #         overlap = list(set(partyVocabInTime).intersection(change))
-    #         overlappingWords.append(overlap)
-
-    #     partyTimeDf['overlapping_words'] = overlappingWords
-    #     partyTimeDf['overlapCount'] = partyTimeDf.overlapping_words.map(len)
-
-    #     partyTimeDf['overlap2_delist'] = [','.join(map(str, l)) for l in partyTimeDf['overlapping_words']]
-
-    #     # wtf is this?!
-    #     partyTimeDfOverridden = partyTimeDf[partyTimeDf['overlap2_delist'].str.contains('leave')]
-    #     for term in ['brexit','remain','cliff','exit','trigger','triggered','triggering','withdraw','remainers','bill']:
-    #         partyTimeDfOverridden = partyTimeDfOverridden[partyTimeDfOverridden['overlap2_delist'].str.contains(term)]
-
-    #     partyTimeDfOverridden['stemmed']=['s' for i in range(len(partyTimeDfOverridden))]
-    #     partyTimeDfOverridden=partyTimeDfOverridden.reset_index()
-
-    #     stemmer = SnowballStemmer("english")
-    #     colIndex = partyTimeDfOverridden.columns.get_loc('stemmed')
-    #     print(f"{len(partyTimeDfOverridden)} rows to process")
-    #     for index, row in partyTimeDfOverridden.iterrows():
-    #         print(index,row['party'])
-    #         # print(row['Lemmas'])
-    #         # if pd.isnull(row['Lemmas']):
-    #             # print('no lemmas, continuing...')
-    #             # continue
-    #         if(len(partyTimeDfOverridden.iat[index,colIndex])>1):
-    #             print(partyTimeDfOverridden.iat[index,colIndex][0])
-    #             print('Already set')
-    #             continue
-    #         else:
-    #         #=='s' or partyTimeDfOverridden.iat[index,colIndex].isnull()):
-    #             print('Stemming')
-    #             stemmed=  [stemmer.stem(y) for y in partyTimeDfOverridden.at[index,'Lemmas']] # Stem every word.
-    #             print(len(stemmed))
-    #             #partyTimeDfOverridden.loc[index, 'stemmed'] = stemmed
-    #             partyTimeDfOverridden.iat[index,colIndex] = stemmed
-
-    #     print('Stemming complete')
-    #     listDfsKeep = partyTimeDfOverridden['df_name'].to_list()
-    #     # Dropping key-value pairs from dictionary where the key doesn't match
-
-    #     for k,v in list(dictSpeechesByParty.items()):
-    #         if (k not in listDfsKeep):
-    #             del dictSpeechesByParty[k]
-
-    #     len(dictSpeechesByParty.values())
-
-    #     lemList = list(partyTimeDfOverridden['stemmed'])
-    #     #print(lemList[0][0])
-
-    #     for ind,k in enumerate(dictSpeechesByParty.keys()):
-    #         print(ind,k)
-    #         dictSpeechesByParty[k].at[0,'stemmed']='s'
-    #         # print(dictSpeechesByParty['df_t2_Labour (Co-op)'].dtypes)
-    #         stInd = dictSpeechesByParty[k].columns.get_loc('stemmed')
-    #         dictSpeechesByParty[k].iat[0,stInd]=lemList[ind]
-
-    #     dictOfModels = {}
-    #     count = 1
-
-    #     print('GENERATE WORDTOVEC')
-    #     for dframe in dictSpeechesByParty: 
-
-    #         # Doing in batches since notebook RAM crashe
-    #         print(dictSpeechesByParty[dframe]['df_name'])
-    #         print('Hello', dictSpeechesByParty[dframe]['stemmed'])
-    #         model = gensim.models.Word2Vec(
-    #             dictSpeechesByParty[dframe]['stemmed'],
-    #             min_count=1,
-    #             vector_size=300,
-    #             window = 5,
-    #             sg = 1
-    #         )
-
-    #         # Also saving model in a dict and exporting
-
-    #         modelName ='model_'+ dframe
-    #         print('model number', count, modelName)
-
-    #         dictOfModels[dframe] = model
-    #         #model.save(os.path.join(models_folder, modelName))
-    #         count = count +1
-
-    #     modelsToAlign = list(dictOfModels.values())
-    #     for i in range(0,len(modelsToAlign)-1):
-    #         functools.reduce(self._smart_procrustes_align_gensim, modelsToAlign)
-
-    #     for ind in range(0,len(listDfsKeep)-1):
-    #         if(len(dictOfModels[listDfsKeep[ind]].wv.index_to_key)!=len(dictOfModels[listDfsKeep[ind+1]].wv.index_to_key)):
-    #             print('Vocabs not similar')
-
-    #     print('Vocab Size', len(dictOfModels[listDfsKeep[ind]].wv.index_to_key))
-
-    #     print('SAVING MODELS')
-    #     os.makedirs(outdir, exists_ok=True)
-    #     for k in dictOfModels.keys(): 
-    #         dictOfModels[k].save(os.path.join(outdir, k))
 
     def retrofit_prep(self, retrofit_outdir=None, overwrite=False):
         if retrofit_outdir:
@@ -629,6 +461,8 @@ class ParliamentDataHandler(object):
                             if(rec.split('-')[1]==word_mps_party[j].split('-')[1]):
                                 syntup = (rec,word_mps_party[j])
                                 synonyms.append(syntup)
+                        elif factor=='debate':
+                            pass
                         else:
                             syntup = (rec,word_mps_party[j])
                             synonyms.append(syntup)
@@ -1008,6 +842,9 @@ class ParliamentDataHandler(object):
 
         self.logger.info('Retrofit: Post Process complete')
 
+    def align_models(self, model_list):
+        pass
+    
     def model(self, outdir, overwrite=False, min_vocab_size = 10000):
         """Function to generate the actual Word2Vec models.
         """
@@ -1041,6 +878,13 @@ class ParliamentDataHandler(object):
                         window = 5,
                         sg = 1
                     )
+
+                _ = self._smart_procrustes_align_gensim(self.model1, self.model2)
+
+                common_vocab = len(set(self.model1.wv.index_to_key).intersection(set(self.model2.wv.index_to_key)))
+                self.logger.info('MODELLING - WHOLE - ALIGNMENT COMPLETE')
+                if common_vocab == 0:
+                    self.logger.error("MODELLING - WHOLE - NO COMMON VOCAB LEFT OVER")
 
                 self.model1.save(savepath_t1)
                 self.model2.save(savepath_t2)
@@ -1142,7 +986,7 @@ class ParliamentDataHandler(object):
 
             self.logger.info(f"MODELLING - RETROFIT - {skipped} out of {count}  models skipped due to vocab size")
             self.logger.info(f"MODELLING - RETROFIT - {vocab_skipped} out of {count} models skipped due to insufficient overlap with vocab of interest")
-            self.logger.info(f"Total skipped: {vocab_skipped+skipped} out of {count} = {(vocab_skipped+skipped)/count:.2f}%")
+            self.logger.info(f"Total skipped: {vocab_skipped+skipped} out of {count} = {100*(vocab_skipped+skipped)/count:.2f}%")
 
             if new:
                 self.logger.info('MODELLING - RETROFIT - New models detected. Loading back in and running alignment')
@@ -1287,7 +1131,6 @@ class ParliamentDataHandler(object):
             return self.words_of_interest, self.change_cossim, self.no_change_cossim
 
         elif self.model_type == 'speaker':
-
 
             self.words_of_interest = self.cosine_similarity_df[self.cosine_similarity_df['Word'].isin(self.change+self.no_change)].copy()
 

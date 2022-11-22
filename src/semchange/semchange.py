@@ -897,8 +897,10 @@ class ParliamentDataHandler(object):
 
             self.split_speeches_by_mp = self.split_speeches_df(by='speaker')
             self.speaker_saved_models = []
-            skipped = 0
+            new = False
             count = 0
+            skipped = 0
+            vocab_skipped = 0
             for row in self.split_speeches_by_mp.itertuples():
                 model_savepath = os.path.join(outdir, f'speaker_{row.df_name}.model')
                 if (os.path.isfile(model_savepath) and not overwrite):
@@ -915,6 +917,14 @@ class ParliamentDataHandler(object):
                             window = 5,
                             sg = 1
                         )
+                        vocab_of_interest = set(self.change + self.no_change)
+                        req_size = len(vocab_of_interest)
+                        overlap = len(vocab_of_interest.intersection(set(model.wv.index_to_key)))/req_size
+                        if overlap<0.5:
+                            vocab_skipped += 1
+                            self.logger.info(f'MODELLING - Skipped {row.df_name} due to not enough overlap with words of interest. Overlap: {overlap:.2f}')
+                            continue
+                        # Skip if below minimum size
                         if len(model.wv.index_to_key) < min_vocab_size:
                             skipped += 1
                             continue
@@ -927,6 +937,33 @@ class ParliamentDataHandler(object):
                         self.logger.error(e)
 
             self.logger.info(f"MODELLING - SPEAKER - {skipped} out of {count}  models skipped due to vocab size")
+            self.logger.info(f"MODELLING - SPEAKER - {vocab_skipped} out of {count} models skipped due to insufficient overlap with vocab of interest")
+            self.logger.info(f"Total skipped: {vocab_skipped+skipped} out of {count} = {100*(vocab_skipped+skipped)/count:.2f}%")
+
+            if new:
+                self.logger.info('MODELLING - SPEAKER - New models detected. Loading back in and running alignment')
+                for ind, model_path in enumerate(self.speaker_saved_models[:-1]):
+
+                    model_current = gensim.models.Word2Vec.load(model_path)
+                    check = np.array(model_current.wv[model_current.wv.index_to_key[0]])
+                    model_next    = gensim.models.Word2Vec.load(self.speaker_saved_models[ind+1])
+
+                    _ = self._smart_procrustes_align_gensim(model_current, model_next)
+
+                    current_common_vocab_size = len(set(model_current.wv.index_to_key).intersection(set(model_next.wv.index_to_key)))
+                    self.logger.info(f"MODELLING - SPEAKER - ALIGNMENT - CURRENT COMMON VOCAB IS {current_common_vocab_size} after alignment at index {ind}, model: {model_path}")
+
+                    if np.sum(check-model_current.wv[model_current.wv.index_to_key[0]])>0:
+                        self.logger.warning('MODELLING - SPEAKER - PLEASE CHECK ALIGNMENT PROCEDURE')
+                        return None
+
+                    model_current.save(model_path)
+                    model_next.save(self.speaker_saved_models[ind+1])
+                self.logger.info('MODELLING - SPEAKER - ALIGNMENT COMPLETE')
+                if current_common_vocab_size == 0:
+                    self.logger.error("MODELLING - SPEAKER - NO COMMON VOCAB LEFT OVER")
+            else:
+                self.logger.info('MODELLING - SPEAKER - NO NEW MODELS GENERATED -> NO ALIGNMENT NECESSARY')
 
         if self.model_type == 'retrofit':
             # create aligned models for retrofit.

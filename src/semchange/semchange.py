@@ -60,8 +60,14 @@ class ParliamentDataHandler(object):
     def _tokenize_one_sentence(self, sentence):
         if isinstance(sentence, str):
             sentence = sentence.lower()
-        tokenizer = RegexpTokenizer(r'\w+')
-        tokens = tokenizer.tokenize(sentence)
+            tokenizer = RegexpTokenizer(r'\w+')
+            tokens = tokenizer.tokenize(sentence)
+        elif isinstance(sentence, float):
+            self.logger.warning("Float detected in tokenization: {sentence}")
+            tokens = [sentence]
+        elif isinstance(sentence, list):
+            self.logger.warning("List detected in tokenization: {sentence}")
+            tokens = sentence
         return tokens
 
     def tokenize_data(self, tokenized_data_dir=None, overwrite = False):

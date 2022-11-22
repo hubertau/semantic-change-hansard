@@ -1519,7 +1519,7 @@ class ParliamentDataHandler(object):
             'Precision':precision,
             'Recall':recall,
             'F1Score':f1_score_res,
-            'logreg_type': np.NaN,
+            'Logreg_type': -1,
             'Input Size': X_train.shape[0],
             'Train Change Count': np.sum(y_train=='change'),
             'Train No Change Count': np.sum(y_train=='no_change')

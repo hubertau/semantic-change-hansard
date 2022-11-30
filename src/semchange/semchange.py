@@ -351,8 +351,8 @@ class ParliamentDataHandler(object):
                 'debate_id'
                 ]
             )
-        self.data_t1.loc[:,'debate_id'] = self.data_t1['agenda'].apply(hash)
-        self.data_t2.loc[:,'debate_id'] = self.data_t2['agenda'].apply(hash)
+        self.data_t1.loc[:,'debate_id'] = self.data_t1['agenda'].map(hash)
+        self.data_t2.loc[:,'debate_id'] = self.data_t2['agenda'].map(hash)
         split_t1 = list(self.data_t1[by].unique())
         split_t2 = list(self.data_t2[by].unique())
         total_split = set(split_t1+split_t2)
@@ -448,7 +448,6 @@ class ParliamentDataHandler(object):
 
 
         parties = list(data.party.unique())
-        debate_ids = list(data.debate_id.unique())
 
         # initiate dictionary to save output for
         dictOfSynonyms={}
@@ -468,16 +467,18 @@ class ParliamentDataHandler(object):
                 splat = p.split(' ')
                 p = '-'.join(splat)
 
-            for debate_id in debate_ids:
+            for debate_id_list in data['debate_id']:
 
-                for ind, name in enumerate(speaker_ids):
+                for debate_id in debate_id_list:
 
-                    # Concatenating speaker first and last names with '-'
-                    name = name.replace(' ','-')
+                    for ind, name in enumerate(speaker_ids):
 
-                    #Creating synonym string or key 
-                    syn_str = f"{word}-{times[ind]}-{name}-{p}-{debate_id}"
-                    partySynonyms.append(syn_str)
+                        # Concatenating speaker first and last names with '-'
+                        name = name.replace(' ','-')
+
+                        #Creating synonym string or key 
+                        syn_str = f"{word}-{times[ind]}-{name}-{p}-{debate_id}"
+                        partySynonyms.append(syn_str)
 
             dictOfSynonyms[p]=partySynonyms
 
@@ -600,6 +601,7 @@ class ParliamentDataHandler(object):
         # sanity check that we do have retrofit savepaths readily accesible
         assert len(self.retrofit_model_paths) > 0
 
+        first=True
         if (os.path.isfile(self.vectorFileName) and overwrite) or not os.path.isfile(self.vectorFileName):
 
             # PREP DF
@@ -611,12 +613,14 @@ class ParliamentDataHandler(object):
             synonymsList = firstSyns+secondSyns
             uniqueSynonymsList = set(synonymsList)
 
-            syn_df = pd.DataFrame(columns = ['full_model_path','modelKey', 'time', 'speaker', 'party'])
+            syn_df = pd.DataFrame(columns = ['full_model_path','modelKey', 'time', 'speaker', 'party', 'debate', 'debate_id'])
             syn_df['full_model_path'] = self.retrofit_model_paths
             syn_df['modelKey'] = [os.path.split(i)[-1] for i in self.retrofit_model_paths]
             syn_df['time'] = syn_df['modelKey'].apply(lambda x: x.split('df_')[1].split('_')[0])
             syn_df['speaker'] = syn_df['modelKey'].apply(lambda x: x.split('df_')[1].split('_')[1])
             syn_df['party'] = syn_df['speaker'].apply(lambda x: self.retrofit_prep_df[self.retrofit_prep_df['speaker'] == x]['party'].iat[0])
+            syn_df['debate'] = syn_df.apply(lambda x: self.retrofit_prep_df[(self.retrofit_prep_df['speaker'] == x.speaker) & (self.retrofit_prep_df['df_name'].isin(x.time))]['debate'].iat[0], axis=1)
+            syn_df['debate_id'] = syn_df.apply(lambda x: self.retrofit_prep_df[(self.retrofit_prep_df['speaker'] == x.speaker) & (self.retrofit_prep_df['df_name'].isin(x.time))]['debate_id'].iat[0], axis=1)
 
             # mpNamePartyInfo is meant to have stuff like '-Con' for Conservatives
             mpNames = []
@@ -630,6 +634,9 @@ class ParliamentDataHandler(object):
                         break
                 mpNames.append('default') if not mpName else mpNames.append(mpName)
             syn_df['mpNamePartyInfo'] = mpNames
+            if first:
+                self.logger.info(f'example mpNamePartyInfo: {mpName}')
+                first=False
 
             # retrieve required vector size from a file
             temp_model = gensim.models.Word2Vec.load(self.retrofit_model_paths[0])

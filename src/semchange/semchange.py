@@ -351,8 +351,8 @@ class ParliamentDataHandler(object):
                 'debate_id'
                 ]
             )
-        self.data_t1.loc[:,'debate_id'] = self.data_t1['agenda'].map(hash)
-        self.data_t2.loc[:,'debate_id'] = self.data_t2['agenda'].map(hash)
+        self.data_t1.loc[:,'debate_id'] = self.data_t1['agenda'].apply(hash)
+        self.data_t2.loc[:,'debate_id'] = self.data_t2['agenda'].apply(hash)
         split_t1 = list(self.data_t1[by].unique())
         split_t2 = list(self.data_t2[by].unique())
         total_split = set(split_t1+split_t2)

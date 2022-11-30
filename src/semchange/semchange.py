@@ -455,6 +455,10 @@ class ParliamentDataHandler(object):
         # Iterate parties & create synonyms where more than one record for a party
         for p in parties:
 
+            # error avoidance
+            if not isinstance(p,str):
+                continue
+
             partySynonyms=[]
             partyDf = data[data['party']==p]
             speaker_ids=list(partyDf['speaker'].unique())

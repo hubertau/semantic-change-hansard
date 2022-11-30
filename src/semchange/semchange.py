@@ -351,8 +351,8 @@ class ParliamentDataHandler(object):
                 'debate_id'
                 ]
             )
-        self.data_t1['debate_id'] = self.data_t1['agenda'].map(hash)
-        self.data_t2['debate_id'] = self.data_t2['agenda'].map(hash)
+        self.data_t1.loc[:,'debate_id'] = self.data_t1['agenda'].map(hash)
+        self.data_t2.loc[:,'debate_id'] = self.data_t2['agenda'].map(hash)
         split_t1 = list(self.data_t1[by].unique())
         split_t2 = list(self.data_t2[by].unique())
         total_split = set(split_t1+split_t2)
@@ -380,7 +380,7 @@ class ParliamentDataHandler(object):
                 tempList.extend(tempDf['tokens'].to_list())
                 split = tempDf[by].iat[0]
                 party = tempDf['party'].iat[0]
-                debate = tempDf['debate'].to_list()
+                debate = tempDf['agenda'].to_list()
                 debate_ids = tempDf['debate_id'].to_list()
 
                 #Flatten the list so it's not a list of lists

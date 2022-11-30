@@ -515,15 +515,17 @@ class ParliamentDataHandler(object):
 
         assert self.retrofit_prep_df is not None
 
-        self.synPicklePath = os.path.join(self.retrofit_outdir, f'synonymsParty_{self.parliament_name}.pkl')
-        self.synTextPath = os.path.join(self.retrofit_outdir, f'synonymsParty_{self.parliament_name}.txt')
+        self.retrofit_factor = factor
+
+        self.synPicklePath = os.path.join(self.retrofit_outdir, f'synonyms_{self.parliament_name}_{factor}.pkl')
+        self.synTextPath = os.path.join(self.retrofit_outdir, f'synonyms_{self.parliament_name}_{factor}.txt')
 
         self.logger.info(f'Retrofit: Processing Synonyms...')
         if ((os.path.isfile(self.synPicklePath) and os.path.isfile(self.synTextPath)) and overwrite) or not (os.path.isfile(self.synPicklePath) and os.path.isfile(self.synTextPath)):
 
             allSynonyms=[]
             for word in self.words_of_interest:
-                synonymsPerWord = self.retrofit_create_synonyms(self.retrofit_prep_df,word,factor)
+                synonymsPerWord = self.retrofit_create_synonyms(self.retrofit_prep_df,word,self.retrofit_factor)
                 #print(len(synonyms)) #Verify length of synonyms
                 allSynonyms.append(synonymsPerWord)
             #Here it is 84 , which is sum of combinations made 
@@ -592,7 +594,7 @@ class ParliamentDataHandler(object):
     def retrofit_create_input_vectors(self, workers = None, overwrite=False):
 
         self.logger.info('Retrofit: Create Input Vectors')
-        self.vectorFileName = os.path.join(self.retrofit_outdir,'vectorsPartyTime.hdf5')
+        self.vectorFileName = os.path.join(self.retrofit_outdir,f'vectors_{self.retrofit_factor}.hdf5')
         self.vectorIndexFileName = os.path.join(self.retrofit_outdir,f'vector_index_to_key_{self.parliament_name}.pkl')
 
         # sanity check that we do have retrofit savepaths readily accesible
@@ -634,27 +636,6 @@ class ParliamentDataHandler(object):
             temp_vec = temp_model.wv[temp_model.wv.index_to_key[0]]
             self.vector_size = temp_vec.shape[0]
 
-            # # open write stream to vector output file
-            # with h5py.File(self.vectorFileName,'a') as f:
-            #     g = f.require_dataset(
-            #         self.parliament_name,
-            #         shape=(len(self.words_of_interest)*len(syn_df), self.vector_size),
-            #         dtype='float64',
-            #         compression='lzf'
-            #     )
-
-            #     metadata_index_to_key = []
-            #     index_count = 0
-            #     for row in tqdm(syn_df.itertuples(), total=len(syn_df)):
-            #         # iterate over syn_df first because it takes time to load model.
-            #         model = gensim.models.Word2Vec.load(row.full_model_path)
-            #         if row.mpNamePartyInfo != 'dummy':
-            #             for word in tqdm(self.words_of_interest, leave=False):
-            #                 synonymString = f"{word}-{row.time}-{row.speaker.replace(' ','-')}-{row.mpNamePartyInfo}"
-            #                 if word in model.wv.index_to_key:
-            #                     g[index_count, :] = model.wv[word]
-            #                     metadata_index_to_key.append(synonymString)
-            #                     index_count += 1
             write=True
             with h5py.File(self.vectorFileName,'a') as f:
                 if self.parliament_name in f.keys() and overwrite:
@@ -691,35 +672,6 @@ class ParliamentDataHandler(object):
                 with open(self.vectorIndexFileName, 'wb') as f:
                     pickle.dump(index_to_key, f)
 
-            # 2022-10-25 dev backup: save also as 
-
-                        # # if(syn_df['mpNamePartyInfo'].iat[i]!='dummy'):
-                        #     # if(word in syn_df['model'].iat[i].wv.index_to_key):
-
-                        #         # synonymString = word+'-'+syn_df['time'].iat[i]+'-'+syn_df['mpId'].iat[i]+'-'+syn_df['mpNamePartyInfo'].iat[i]
-                        #         wordVector = model.wv[word]
-                        #         stringifiedVector = str(wordVector.flatten())
-
-                        #         #The numpy array contains array brackets at the start and end, 
-                        #         #This is not the format as in Faruqui's input code, hence replace
-                        #         stringifiedVector = stringifiedVector.replace('[','').replace(']','')
-
-                        #         #Strangely the vectors that start with a negative floating point have no space written 
-                        #         #between the synonym key and the vector dimensions.
-                        #         #So to check if the first dimension of the vector is <0 and if so, insert space before
-                        #         stringVectorSplit = stringifiedVector.split()
-                        #         if(stringVectorSplit[0]!=''):
-                        #             if(float(stringVectorSplit[0])<0):
-                        #                 stringifiedVector = ' '+stringifiedVector
-
-                        #         f.write(synonymString)
-                        #         f.write(stringifiedVector)
-
-                        #         #To prevent writing an extra line break at the end of the file
-                        #         if w_ind==len(self.words_of_interest)-1:
-                        #             continue
-                        #         else:
-                        #             f.write('\n')
             return True
         else:
             self.logger.info('Retrofit: input vector creation already complete.')

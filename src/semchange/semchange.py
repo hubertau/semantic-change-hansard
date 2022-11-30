@@ -701,7 +701,7 @@ class ParliamentDataHandler(object):
 
     def retrofit_output_vec(self, model_output_dir = None, overwrite=False):
         self.logger.info('Retrofit: Generate outfile')
-        self.retrofit_outfile = os.path.join(model_output_dir,'retrofit_out.txt')
+        self.retrofit_outfile = os.path.join(model_output_dir,f'retrofit_out_{self.retrofit_factor}.txt')
         if (os.path.isfile(self.retrofit_outfile) and overwrite) or not os.path.isfile(self.retrofit_outfile):
             wordVecs = self.retrofit_read_word_vecs_hdf5()
             lexicon = retrofit.read_lexicon(self.synTextPath)
@@ -819,19 +819,16 @@ class ParliamentDataHandler(object):
         for t in ['t1','t2']:
             vocab = {k:v for k,v in dictKeyVector.items() if t in k}
             self._save_word2vec_format(
-                fname = os.path.join(model_output_dir, f'retrofit_vecs_{t}.bin'),
+                fname = os.path.join(model_output_dir, f'retrofit_vecs_{t}_{self.retrofit_factor}.bin'),
                 vocab = vocab,
                 vector_size = np.array(vocab[list(vocab.keys())[0]]).shape[0]
             )
 
-        self.model1 = gensim.models.KeyedVectors.load_word2vec_format(os.path.join(model_output_dir, f'retrofit_vecs_t1.bin'), binary=True)
-        self.model2 = gensim.models.KeyedVectors.load_word2vec_format(os.path.join(model_output_dir, f'retrofit_vecs_t2.bin'), binary=True)
+        self.model1 = gensim.models.KeyedVectors.load_word2vec_format(os.path.join(model_output_dir, f'retrofit_vecs_t1_{self.retrofit_factor}.bin'), binary=True)
+        self.model2 = gensim.models.KeyedVectors.load_word2vec_format(os.path.join(model_output_dir, f'retrofit_vecs_t2_{self.retrofit_factor}.bin'), binary=True)
 
         self.logger.info('Retrofit: Post Process complete')
 
-    def align_models(self, model_list):
-        pass
-    
     def model(self, outdir, overwrite=False, min_vocab_size = 10000):
         """Function to generate the actual Word2Vec models.
         """
@@ -1280,7 +1277,10 @@ class ParliamentDataHandler(object):
         scoresDf = pd.DataFrame.from_records(scores_list)
 
         self.logger.info(scoresDf)
-        savepath = os.path.join(model_output_dir, 'logreg.csv')
+        if self.model_type == 'retrofit':
+            savepath = os.path.join(model_output_dir, 'logreg_{self.retorfit_factor}.csv')
+        else:
+            savepath = os.path.join(model_output_dir, 'logreg.csv')
         scoresDf.to_csv(savepath)
 
     def nn_comparison(self, model_output_dir, undersample = True):
@@ -1402,8 +1402,11 @@ class ParliamentDataHandler(object):
             'Train No Change Count': np.sum(y_train=='no_change')
         }
         scoresDf = pd.DataFrame(scoresDict)
-
-        scoresDf.to_csv(os.path.join(model_output_dir, 'nn_comparison.csv'))
+        if self.model_type == 'retrofit':
+            savepath = os.path.join(model_output_dir, 'nn_comparison_{self.retorfit_factor}.csv')
+        else:
+            savepath = os.path.join(model_output_dir, 'nn_comparison.csv')
+        scoresDf.to_csv(savepath)
 
         group1= self.words_of_interest['overlappingNeighbours'][self.words_of_interest['semanticDifference'] == 'change']
         group2= self.words_of_interest['overlappingNeighbours'][self.words_of_interest['semanticDifference'] == 'no_change']
@@ -1413,7 +1416,11 @@ class ParliamentDataHandler(object):
         summary_neighbours, results_neighbours = rp.ttest(group1= self.words_of_interest['overlappingNeighbours'][self.words_of_interest['semanticDifference'] == 'change'], group1_name= "change",
                                     group2= self.words_of_interest['overlappingNeighbours'][self.words_of_interest['semanticDifference'] == 'no_change'], group2_name= "no_change")
         # print(summary_neighbours)
-        summary_neighbours.to_csv(os.path.join(model_output_dir, 'nn_comparison_ttest.csv'))
+        if self.model_type == 'retrofit':
+            savepath = os.path.join(model_output_dir, 'nn_comparison_ttest_{self.retorfit_factor}.csv')
+        else:
+            savepath = os.path.join(model_output_dir, 'nn_comparison_ttest.csv')
+        summary_neighbours.to_csv(savepath)
 
 
 

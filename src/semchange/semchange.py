@@ -342,7 +342,17 @@ class ParliamentDataHandler(object):
             splitspeeches = pd.DataFrame(columns=['df_name' ,'tokens', 'party'])
         elif by == 'mp' or by == 'speaker':
             by = 'speaker'
-            splitspeeches = pd.DataFrame(columns=['df_name', by ,'tokens', 'party'])
+            splitspeeches = pd.DataFrame(columns=[
+                'df_name',
+                by ,
+                'tokens',
+                'party',
+                'debate',
+                'debate_id'
+                ]
+            )
+        self.data_t1['debate_id'] = self.data_t1['agenda'].map(hash)
+        self.data_t2['debate_id'] = self.data_t2['agenda'].map(hash)
         split_t1 = list(self.data_t1[by].unique())
         split_t2 = list(self.data_t2[by].unique())
         total_split = set(split_t1+split_t2)
@@ -370,12 +380,17 @@ class ParliamentDataHandler(object):
                 tempList.extend(tempDf['tokens'].to_list())
                 split = tempDf[by].iat[0]
                 party = tempDf['party'].iat[0]
+                debate = tempDf['debate'].to_list()
+                debate_ids = tempDf['debate_id'].to_list()
 
                 #Flatten the list so it's not a list of lists
                 # 2022-10-10: This is the offending line that splits words into letters screwing up the subsequent stuff.
                 # tempList = [item for sublist in tempList for item in sublist]
 
-                tempDf = pd.DataFrame([[split, tempList, party]],columns=[by, 'tokens', 'party'])
+                tempDf = pd.DataFrame([
+                    [split, tempList, party, debate, debate_ids]],
+                    columns=[by, 'tokens', 'party', 'debate', 'debate_id']
+                )
                 tempDf['df_name'] = dfName
                 splitspeeches = pd.concat([splitspeeches, tempDf], axis=0)
                 # splitspeeches[dfName]= tempDf
@@ -419,8 +434,23 @@ class ParliamentDataHandler(object):
             self.retrofit_prep_df = pd.read_json(retrofit_prep_savepath, orient='split')
             self.logger.info(f'Retrofit prep loaded in from {retrofit_prep_savepath}, key = {self.parliament_name}')
 
-    def retrofit_create_synonyms_party(self, data, word, factor):
-        parties = list(data.party.value_counts().index)
+    def retrofit_create_synonyms(self, data, word, factor):
+        """Function to create the synonyms from an input dataframe (retrofit_prep)
+
+        Args:
+            data (_type_): _description_
+            word (_type_): _description_
+            factor (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
+
+
+        parties = list(data.party.unique())
+        debate_ids = list(data.debate_id.unique())
+
+        # initiate dictionary to save output for
         dictOfSynonyms={}
 
         # Iterate parties & create synonyms where more than one record for a party
@@ -438,48 +468,53 @@ class ParliamentDataHandler(object):
                 splat = p.split(' ')
                 p = '-'.join(splat)
 
-            for ind, name in enumerate(speaker_ids):
+            for debate_id in debate_ids:
 
-                # Concatenating speaker first and last names with '-'    
-                name = name.replace(' ','-')
+                for ind, name in enumerate(speaker_ids):
 
-                #Creating synonym string or key 
-                syn_str = f"{word}-{times[ind]}-{name}-{p}"
-                partySynonyms.append(syn_str)
+                    # Concatenating speaker first and last names with '-'
+                    name = name.replace(' ','-')
+
+                    #Creating synonym string or key 
+                    syn_str = f"{word}-{times[ind]}-{name}-{p}-{debate_id}"
+                    partySynonyms.append(syn_str)
 
             dictOfSynonyms[p]=partySynonyms
+
         #Making pairs
         synonyms=[]
+
+        # iterate over parties. k = parties
         for k in dictOfSynonyms.keys():
             word_mps_party = dictOfSynonyms[k]
             # Proceed to make pairs only if more than one record per party
             if(len(word_mps_party)>1):
-                for i,rec in enumerate(word_mps_party):
+                for i, rec in enumerate(word_mps_party):
                     for j in range(i+1,len(word_mps_party)):
                         # --------------- IF MAKING PAIRS ON PARTY-TIME BASIS, THIS CODE IS THE DIFFERENTIATING BIT---
-                        if(factor=='party-time'):
+                        if factor == 'party-time':
+                            # 'rec' here has structure {word}-{times[ind]}-{name}-{p}
+                            # rec.split('-')[1] is time
                             if(rec.split('-')[1]==word_mps_party[j].split('-')[1]):
                                 syntup = (rec,word_mps_party[j])
                                 synonyms.append(syntup)
-                        elif factor=='debate':
-                            pass
-                        else:
+                        elif factor == 'party-debate-time':
+                            if (rec.split('-')[1]==word_mps_party[j].split('-')[1]) and (rec.split('-')[4] == word_mps_party[j].split('-')[4]):
+                                syntup = (rec, word_mps_party[j])
+                                synonyms.append(syntup)
+                        elif factor == 'party-debate':
+                            if rec.split('-')[4] == word_mps_party[j].split('-')[4]:
+                                syntup = (rec, word_mps_party[j])
+                                synonyms.append(syntup)
+                        elif factor == 'party':
                             syntup = (rec,word_mps_party[j])
                             synonyms.append(syntup)
         return synonyms
 
-    def retrofit_create_synonyms(self, data, word, factor):
-
-        # For both party and party-time basis
-        if(factor=='party' or factor=='party-time'):
-            synonyms = self.retrofit_create_synonyms_party(data, word, factor)
-        return synonyms
-
-    def retrofit_main_create_synonyms(self, overwrite=False):
+    def retrofit_main_create_synonyms(self, factor = None, overwrite=False):
 
         assert self.retrofit_prep_df is not None
 
-        synonymFactor = 'party'
         self.synPicklePath = os.path.join(self.retrofit_outdir, f'synonymsParty_{self.parliament_name}.pkl')
         self.synTextPath = os.path.join(self.retrofit_outdir, f'synonymsParty_{self.parliament_name}.txt')
 
@@ -488,7 +523,7 @@ class ParliamentDataHandler(object):
 
             allSynonyms=[]
             for word in self.words_of_interest:
-                synonymsPerWord = self.retrofit_create_synonyms(self.retrofit_prep_df,word,synonymFactor)
+                synonymsPerWord = self.retrofit_create_synonyms(self.retrofit_prep_df,word,factor)
                 #print(len(synonyms)) #Verify length of synonyms
                 allSynonyms.append(synonymsPerWord)
             #Here it is 84 , which is sum of combinations made 
@@ -1190,7 +1225,7 @@ class ParliamentDataHandler(object):
 
             self.words_of_interest = self.change + self.no_change
 
-    def postprocess(self, model_output_dir, workers=10, overwrite=False)->None:
+    def postprocess(self, model_output_dir, workers=10, retrofit_factor=None, overwrite=False)->None:
         self.logger.info("POSTPROCESS: BEGIN")
         if self.model_type == 'speaker':
             self.process_speaker(model_output_dir, overwrite=overwrite)
@@ -1198,7 +1233,7 @@ class ParliamentDataHandler(object):
         self.woi()
 
         if self.model_type in ['retrofit', 'retro']:
-            self.retrofit_main_create_synonyms(overwrite=overwrite)
+            self.retrofit_main_create_synonyms(factor = retrofit_factor, overwrite=overwrite)
             self.retrofit_create_input_vectors(workers = workers, overwrite=overwrite)
             self.retrofit_output_vec(model_output_dir = model_output_dir, overwrite=overwrite)
             self.retrofit_post_process(self.change, self.no_change, model_output_dir)
@@ -1442,6 +1477,7 @@ class ParliamentDataHandler(object):
 @click.option('--split_date', required=False, default='2016-06-23 23:59:59')
 @click.option('--split_range', required=False, type=int)
 @click.option('--retrofit_outdir', required=False)
+@click.option('--retrofit_factor', required=False, default='party')
 @click.option('--undersample', required=False, is_flag = True)
 @click.option('--log_level', required=False, default='INFO')
 @click.option('--log_dir', required=False)
@@ -1460,6 +1496,7 @@ def main(
         split_date,
         split_range,
         retrofit_outdir,
+        retrofit_factor,
         model,
         undersample,
         log_level,
@@ -1570,6 +1607,7 @@ def main(
     handler.postprocess(
         model_output_dir,
         workers = 10,
+        retrofit_factor = retrofit_factor,
         overwrite=overwrite_postprocess
     )
     handler.logreg(model_output_dir, undersample)

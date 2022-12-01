@@ -497,7 +497,7 @@ class ParliamentDataHandler(object):
         debate_id_set = set()
         for debate_id_list in data['debate_id']:
             for debate_id in debate_id_list:
-                debate_id_set.add(int(debate_id))
+                debate_id_set.add(str(debate_id))
         assert len(debate_id_set) > 0
         debate_id_list = list(debate_id_set)
 

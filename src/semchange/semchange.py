@@ -559,7 +559,7 @@ class ParliamentDataHandler(object):
             # temp = True
             #TODO: CHECK WHETHER WORD OCCURS IN DEBATE!!
             for row in selected_df.itertuples():
-                name = row.name.replace(' ', '_')
+                name = row.speaker.replace(' ', '_')
                 debate_index = row.debate_id.index(int(identifier.debate))
                 if word in row.tokens[debate_index]:
                     syn = synonym_item(

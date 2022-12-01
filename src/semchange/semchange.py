@@ -522,22 +522,30 @@ class ParliamentDataHandler(object):
         dictOfSynonyms={}
 
         # Iterate parties & create synonyms where more than one record for a party
+        temp = True
         for identifier in identifiers:
+            self.logger.debug(f'Running identifier {identifier.stringify()}')
 
             selected_df = data.copy()
             for potential_factor in ['party', 'debate', 'time']:
                 if potential_factor in factor: 
                     if factor == 'party':
                         selected_df = selected_df[selected_df['party']==identifier.party]
+                        self.logger.debug(f'Party factor detected for selected df')
                     if factor == 'time':
                         selected_df = selected_df[selected_df['time']==identifier.time]
+                        self.logger.debug(f'Time factor detected for selected df')
                     if factor == 'debate':
-                        selected_df = selected_df[selected_df['debate']==identifier.debate]
+                        selected_df = selected_df[selected_df['debate_id'].apply(lambda x: identifier.debate in x)]
+                        self.logger.debug(f'Debate factor detected for selected df')
+            temp=False
+
 
             identifier_synonyms=[]
 
             speaker_ids=list(selected_df['speaker'].unique())
 
+            temp = True
             for name in speaker_ids:
 
                 # Concatenating speaker first and last names with '_'
@@ -550,7 +558,10 @@ class ParliamentDataHandler(object):
                     speaker = name,
                     party  = identifier.party
                 )
-                    # debate = identifier.debate
+                # debate = identifier.debate
+                if temp:
+                    self.logger.debug(f'Example: Saving {syn.stringify()}')
+                    temp = False
                 # syn_str = f"{word}-{times[ind]}-{name}-{identifier}"
                 identifier_synonyms.append(syn)
 
@@ -712,7 +723,7 @@ class ParliamentDataHandler(object):
             # syn_df['debate_id'] = syn_df.apply(lambda x: self.retrofit_prep_df[(self.retrofit_prep_df['speaker'] == x.speaker) & (self.retrofit_prep_df['df_name'].isin(x.time))]['debate_id'].iat[0], axis=1)
 
             # mpNamePartyInfo is meant to have stuff like '-Con' for Conservatives
-            mpNames = []
+            # mpNames = []
 
             self.logger.info(f'RETROFIT - CHECKING WHICH SPEAKERS TO KEEP WITH GENEREATED SYNONYMS...')
             # iterate over each speaker model in syn_df. Then search the unique synonym list to see if they have words in there. If so, save the associated party info.

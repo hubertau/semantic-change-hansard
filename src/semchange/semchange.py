@@ -488,6 +488,7 @@ class ParliamentDataHandler(object):
 
         self.logger.info(f'RETROFIT - CREATE SYNONYMS - GENERATE IDENTIFIERS FOR WORD: {word}')
         self.logger.info(f"RETROFIT FACTOR: {self.retrofit_factor}")
+        #TODO: ENSURE DATA SLICING IS CORRECT
         parties = list(data.party.unique())
         parties = [i for i in parties if isinstance(i, str)]
         # To fix party names like 'Scottish National Party by inserting hyphens between
@@ -529,10 +530,11 @@ class ParliamentDataHandler(object):
         # Iterate parties & create synonyms where more than one record for a party
         temp = True
         self.logger.info(f'{len(identifiers)} to scan.')
+        count = 0
         for ind, identifier in enumerate(identifiers):
             # self.logger.debug(f'Running identifier {identifier.stringify()}')
 
-            if ind % 1000 == 0:
+            if ind % 10000 == 0:
                 self.logger.info(f'Processed {ind} of {len(identifiers)} = {100*ind/len(identifiers):.2f}%')
 
             selected_df = data.copy()
@@ -552,29 +554,43 @@ class ParliamentDataHandler(object):
 
             identifier_synonyms=[]
 
-            speaker_ids=list(selected_df['speaker'].unique())
+            # speaker_ids=list(selected_df['speaker'].unique())
 
-            temp = True
-            for name in speaker_ids:
+            # temp = True
+            #TODO: CHECK WHETHER WORD OCCURS IN DEBATE!!
+            for row in selected_df.itertuples():
+                name = row.name.replace(' ', '_')
+                debate_index = row.debate_id.index(int(identifier.debate))
+                if word in row.tokens[debate_index]:
+                    syn = synonym_item(
+                        word = word,
+                        time = identifier.time,
+                        speaker = name,
+                        party  = row.party
+                    )
+                    identifier_synonyms.append(syn)
+                    count += 1
+            # for name in speaker_ids:
 
-                # Concatenating speaker first and last names with '_'
-                name = name.replace(' ','_')
+            #     # Concatenating speaker first and last names with '_'
+            #     name = name.replace(' ','_')
 
-                #Creating synonym string or key. N.B. We do not include debate as an identifier because that does not help in getting the vectors from models, which are only done on speaker, time, and party.
-                syn = synonym_item(
-                    word = word,
-                    time = identifier.time,
-                    speaker = name,
-                    party  = identifier.party
-                )
-                # debate = identifier.debate
-                if temp:
-                    self.logger.debug(f'Example: Saving {syn.stringify()}')
-                    temp = False
-                # syn_str = f"{word}-{times[ind]}-{name}-{identifier}"
-                identifier_synonyms.append(syn)
+            #     #Creating synonym string or key. N.B. We do not include debate as an identifier because that does not help in getting the vectors from models, which are only done on speaker, time, and party.
+            #     syn = synonym_item(
+            #         word = word,
+            #         time = identifier.time,
+            #         speaker = name,
+            #         party  = identifier.party
+            #     )
+            #     # debate = identifier.debate
+            #     # if temp:
+            #     #     self.logger.debug(f'Example: Saving {syn.stringify()}')
+            #     #     temp = False
+            #     # syn_str = f"{word}-{times[ind]}-{name}-{identifier}"
+            #     identifier_synonyms.append(syn)
 
             dictOfSynonyms[identifier.stringify()]=identifier_synonyms
+        self.logger.info(f'{count} string saved')
 
         # 2022-12-01 Make synonym lists rather than synonym pairs. Now by construction words will have lists split by factors.
 

@@ -514,8 +514,9 @@ class ParliamentDataHandler(object):
             if potential_factor in factor:
                 identifier_factors.append(identifier_dict[potential_factor])
 
-        identifiers = list(product(identifier_factors))
+        identifiers = list(product(*identifier_factors))
         identifiers = [syn_identifier(word, *i) for i in identifiers]
+        self.logger.debug(f"Exapmle syn_identifier: {identifiers[0].stringify()}")
         self.logger.info('RETROFIT - CREATE SYNONYMS - IDENTIFIERS GENERATED')
 
         # initiate dictionary to save output for
@@ -943,7 +944,7 @@ class ParliamentDataHandler(object):
 
         self.logger.info('Retrofit: Post Process complete')
 
-    def model(self, outdir, overwrite=False, min_vocab_size = 10000):
+    def model(self, outdir, overwrite=False, skip_model_check = False ,min_vocab_size = 10000):
         """Function to generate the actual Word2Vec models.
         """
         self.outdir = outdir
@@ -1078,7 +1079,7 @@ class ParliamentDataHandler(object):
             for row in self.retrofit_prep_df.itertuples(): 
 
                 savepath = os.path.join(outdir, row.df_name)
-                if (os.path.isfile(savepath) and overwrite) or not os.path.isfile(savepath):
+                if (os.path.isfile(savepath) and overwrite) or (not os.path.isfile(savepath) and not skip_model_check):
                     model = gensim.models.Word2Vec(
                         row.tokens,
                         min_count=1,
@@ -1557,6 +1558,7 @@ class ParliamentDataHandler(object):
 @click.option('--log_handler_level', required=False, default='stream')
 @click.option('--overwrite_preprocess', required=False, is_flag=True)
 @click.option('--overwrite_model', required=False, is_flag=True)
+@click.option('--skip_model_check', required=False, is_flag=True)
 @click.option('--overwrite_postprocess', required=False, is_flag=True)
 def main(
         file,
@@ -1577,6 +1579,7 @@ def main(
         log_handler_level,
         overwrite_preprocess,
         overwrite_model,
+        skip_model_check,
         overwrite_postprocess
     ):
     """Semantic Change.
@@ -1675,6 +1678,7 @@ def main(
     handler.model(
         outdir,
         overwrite=overwrite_model,
+        skip_model_check = skip_model_check,
         min_vocab_size=min_vocab_size
     )
     handler.postprocess(

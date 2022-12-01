@@ -540,13 +540,13 @@ class ParliamentDataHandler(object):
             selected_df = data.copy()
             for potential_factor in ['party', 'debate', 'time']:
                 if potential_factor in factor: 
-                    if factor == 'party':
+                    if potential_factor == 'party':
                         selected_df = selected_df[selected_df['party']==identifier.party]
                         self.logger.debug(f'Party factor detected for selected df')
-                    if factor == 'time':
+                    if potential_factor == 'time':
                         selected_df = selected_df[selected_df['time']==identifier.time]
                         self.logger.debug(f'Time factor detected for selected df')
-                    if factor == 'debate':
+                    if potential_factor == 'debate':
                         selected_df = selected_df[selected_df['debate_id'].apply(lambda x: int(identifier.debate) in x)]
                         self.logger.debug(f'Debate factor detected for selected df')
             temp=False

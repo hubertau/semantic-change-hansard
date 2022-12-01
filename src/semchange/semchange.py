@@ -528,8 +528,12 @@ class ParliamentDataHandler(object):
 
         # Iterate parties & create synonyms where more than one record for a party
         temp = True
-        for identifier in identifiers:
-            self.logger.debug(f'Running identifier {identifier.stringify()}')
+        self.logger.info(f'{len(identifiers)} to scan.')
+        for ind, identifier in enumerate(identifiers):
+            # self.logger.debug(f'Running identifier {identifier.stringify()}')
+
+            if ind % 1000 == 0:
+                self.logger.info(f'Processed {ind} of {len(identifiers)} = {100*ind/len(identifiers):.2f}%')
 
             selected_df = data.copy()
             for potential_factor in ['party', 'debate', 'time']:

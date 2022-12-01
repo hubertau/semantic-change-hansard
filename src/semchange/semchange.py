@@ -513,9 +513,12 @@ class ParliamentDataHandler(object):
         for potential_factor in ['party', 'debate', 'time']:
             if potential_factor in factor:
                 identifier_factors.append(identifier_dict[potential_factor])
+                self.logger.debug(f'added {potential_factor}')
 
         identifiers = list(product(*identifier_factors))
+        self.logger.debug(f'Product identifiers: {identifiers[:10]}')
         identifiers = [syn_identifier(word, *i) for i in identifiers]
+        self.logger.debug(f'{identifiers[0]}')
         self.logger.debug(f"Exapmle syn_identifier: {identifiers[0].stringify()}")
         self.logger.info('RETROFIT - CREATE SYNONYMS - IDENTIFIERS GENERATED')
 

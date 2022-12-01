@@ -25,6 +25,7 @@ import numpy as np
 import pandas as pd
 import researchpy as rp
 import spacy
+from itertools import product
 from genericpath import isfile
 from imblearn.under_sampling import RandomUnderSampler
 from joblib import Parallel, delayed
@@ -40,6 +41,45 @@ from sklearn.model_selection import cross_validate, train_test_split
 from spacy.lang.en import English
 from spacy.tokenizer import Tokenizer
 from tqdm import tqdm
+from dataclasses import dataclass
+
+@dataclass
+class syn_identifier:
+    word: str
+    party: str
+    time: str = None
+    debate: str = None
+
+    def stringify(self) -> str:
+        valid_parts = []
+        for field in self.__dataclass_fields__:
+            value = getattr(self, field)
+            if value is not None:
+                valid_parts.append(value)
+        return "_".join(valid_parts)
+
+@dataclass
+class synonym_item:
+    """Class for keeping track of a synonym item in retrofitting."""
+    word: str
+    time: str
+    speaker: str
+    party: str
+    debate: str = None
+
+    def stringify(self) -> str:
+        valid_parts = []
+        for field in self.__dataclass_fields__:
+            value = getattr(self, field)
+            if value is not None:
+                valid_parts.append(value)
+        return "$".join(valid_parts)
+
+    @classmethod
+    def from_string(cls, input_string):
+        i = input_string.split('$')
+        assert len(i) >= 4
+        return cls(*i)
 
 
 class ParliamentDataHandler(object):
@@ -446,86 +486,121 @@ class ParliamentDataHandler(object):
             _type_: _description_
         """
 
-
+        self.logger.info(f'RETROFIT - CREATE SYNONYMS - GENERATE IDENTIFIERS FOR WORD: {word}')
         parties = list(data.party.unique())
+        parties = [i for i in parties if isinstance(i, str)]
+        # To fix party names like 'Scottish National Party by inserting hyphens between
+        parties = [i.replace(' ','_') for i in parties]
+
+        # collect debate id list
+        debate_id_set = set()
+        for debate_id_list in data['debate_id']:
+            for debate_id in debate_id_list:
+                debate_id_set.add(debate_id)
+        assert len(debate_id_set) > 0
+        debate_id_list = list(debate_id_set)
+
+        # set times
+        times = ['t1', 't2']
+        data['time'] = data['df_name'].apply(lambda x: x.split('_')[1])
+
+        identifier_dict = {
+            'party': parties,
+            'time': times,
+            'debate': debate_id_list,
+        }
+        identifier_factors = []
+        for potential_factor in ['party', 'debate', 'time']:
+            if potential_factor in factor:
+                identifier_factors.append(identifier_dict[potential_factor])
+
+        identifiers = list(product(identifier_factors))
+        identifiers = [syn_identifier(word, *i) for i in identifiers]
+        self.logger.info('RETROFIT - CREATE SYNONYMS - IDENTIFIERS GENERATED')
 
         # initiate dictionary to save output for
         dictOfSynonyms={}
 
         # Iterate parties & create synonyms where more than one record for a party
-        for p in parties:
+        for identifier in identifiers:
 
-            # error avoidance
-            if not isinstance(p,str):
-                continue
+            selected_df = data.copy()
+            for potential_factor in ['party', 'debate', 'time']:
+                if potential_factor in factor: 
+                    if factor == 'party':
+                        selected_df = selected_df[selected_df['party']==identifier.party]
+                    if factor == 'time':
+                        selected_df = selected_df[selected_df['time']==identifier.time]
+                    if factor == 'debate':
+                        selected_df = selected_df[selected_df['debate']==identifier.debate]
 
-            partySynonyms=[]
-            partyDf = data[data['party']==p]
-            speaker_ids=list(partyDf['speaker'].unique())
+            identifier_synonyms=[]
 
-            times=list(partyDf['df_name'])
-            times = [t.split('_')[1] for t in times]
+            speaker_ids=list(selected_df['speaker'].unique())
 
-            # To fix party names like 'Scottish National Party by inserting hyphens between
-            if(len(p.split(' '))>1):
-                splat = p.split(' ')
-                p = '-'.join(splat)
+            for name in speaker_ids:
 
-            for debate_id_list in data['debate_id']:
+                # Concatenating speaker first and last names with '_'
+                name = name.replace(' ','_')
 
-                for debate_id in debate_id_list:
+                #Creating synonym string or key. N.B. We do not include debate as an identifier because that does not help in getting the vectors from models, which are only done on speaker, time, and party.
+                syn = synonym_item(
+                    word = word,
+                    time = identifier.time,
+                    speaker = name,
+                    party  = identifier.party
+                )
+                    # debate = identifier.debate
+                # syn_str = f"{word}-{times[ind]}-{name}-{identifier}"
+                identifier_synonyms.append(syn)
 
-                    for ind, name in enumerate(speaker_ids):
+            dictOfSynonyms[identifier.stringify()]=identifier_synonyms
 
-                        # Concatenating speaker first and last names with '-'
-                        name = name.replace(' ','-')
-
-                        #Creating synonym string or key 
-                        syn_str = f"{word}-{times[ind]}-{name}-{p}-{debate_id}"
-                        partySynonyms.append(syn_str)
-
-            dictOfSynonyms[p]=partySynonyms
+        # 2022-12-01 Make synonym lists rather than synonym pairs. Now by construction words will have lists split by factors.
 
         #Making pairs
-        synonyms=[]
+        # synonyms=[]
 
-        # iterate over parties. k = parties
-        for k in dictOfSynonyms.keys():
-            word_mps_party = dictOfSynonyms[k]
-            # Proceed to make pairs only if more than one record per party
-            if(len(word_mps_party)>1):
-                for i, rec in enumerate(word_mps_party):
-                    for j in range(i+1,len(word_mps_party)):
-                        # --------------- IF MAKING PAIRS ON PARTY-TIME BASIS, THIS CODE IS THE DIFFERENTIATING BIT---
-                        if factor == 'party-time':
-                            # 'rec' here has structure {word}-{times[ind]}-{name}-{p}
-                            # rec.split('-')[1] is time
-                            if(rec.split('-')[1]==word_mps_party[j].split('-')[1]):
-                                syntup = (rec,word_mps_party[j])
-                                synonyms.append(syntup)
-                        elif factor == 'party-debate-time':
-                            if (rec.split('-')[1]==word_mps_party[j].split('-')[1]) and (rec.split('-')[4] == word_mps_party[j].split('-')[4]):
-                                syntup = (rec, word_mps_party[j])
-                                synonyms.append(syntup)
-                        elif factor == 'party-debate':
-                            if rec.split('-')[4] == word_mps_party[j].split('-')[4]:
-                                syntup = (rec, word_mps_party[j])
-                                synonyms.append(syntup)
-                        elif factor == 'party':
-                            syntup = (rec,word_mps_party[j])
-                            synonyms.append(syntup)
-        return synonyms
+        # # iterate over parties. k = parties
+        # for k in dictOfSynonyms.keys():
+        #     word_mps_party = dictOfSynonyms[k]
+        #     # Proceed to make pairs only if more than one record per party
+        #     if(len(word_mps_party)>1):
+        #         for i, rec in enumerate(word_mps_party):
+        #             for j in range(i+1,len(word_mps_party)):
+        #                 # --------------- IF MAKING PAIRS ON PARTY-TIME BASIS, THIS CODE IS THE DIFFERENTIATING BIT---
+        #                 if factor == 'party-time':
+        #                     # 'rec' here has structure {word}-{times[ind]}-{name}-{p}
+        #                     # rec.split('-')[1] is time
+        #                     if(rec.split('-')[1]==word_mps_party[j].split('-')[1]):
+        #                         syntup = (rec,word_mps_party[j])
+        #                         synonyms.append(syntup)
+        #                 elif factor == 'party-debate-time':
+        #                     if (rec.split('-')[1]==word_mps_party[j].split('-')[1]) and (rec.split('-')[4] == word_mps_party[j].split('-')[4]):
+        #                         syntup = (rec, word_mps_party[j])
+        #                         synonyms.append(syntup)
+        #                 elif factor == 'party-debate':
+        #                     if rec.split('-')[4] == word_mps_party[j].split('-')[4]:
+        #                         syntup = (rec, word_mps_party[j])
+        #                         synonyms.append(syntup)
+        #                 elif factor == 'party':
+        #                     syntup = (rec,word_mps_party[j])
+        #                     synonyms.append(syntup)
+        return dictOfSynonyms
 
     def retrofit_main_create_synonyms(self, factor = None, overwrite=False):
 
+        # Sanity check
         assert self.retrofit_prep_df is not None
 
+        # Save factor
         self.retrofit_factor = factor
 
+        # Set paths for pickle and text paths of lexicon
         self.synPicklePath = os.path.join(self.retrofit_outdir, f'synonyms_{self.parliament_name}_{factor}.pkl')
         self.synTextPath = os.path.join(self.retrofit_outdir, f'synonyms_{self.parliament_name}_{factor}.txt')
 
-        self.logger.info(f'Retrofit: Processing Synonyms...')
+        self.logger.info(f'RETROFIT - MAIN CREATING SYNONYMS')
         if ((os.path.isfile(self.synPicklePath) and os.path.isfile(self.synTextPath)) and overwrite) or not (os.path.isfile(self.synPicklePath) and os.path.isfile(self.synTextPath)):
 
             allSynonyms=[]
@@ -533,16 +608,18 @@ class ParliamentDataHandler(object):
                 synonymsPerWord = self.retrofit_create_synonyms(self.retrofit_prep_df,word,self.retrofit_factor)
                 #print(len(synonyms)) #Verify length of synonyms
                 allSynonyms.append(synonymsPerWord)
+
+            # 2022-12-01: Now each synonymsPerWord is a dictionary
+            total_dict = {k:v for i in allSynonyms for k,v in i.items()}
+
             #Here it is 84 , which is sum of combinations made 
             #for the three parties (13,3,3)=> no. of combinations is (78,3,3), 78+3+3= 84, hence verified. 
-
-            brexitSynonyms = allSynonyms
 
             # We're capturing synonyms of all words of interest regardless of whether they're part of the models' vocab
             # Since the same synonyms-dictionary can be used for other models
             #print(len(words_of_interest),len(allSynonyms))
 
-            allSynonyms = [tup for lst in brexitSynonyms for tup in lst]
+            # allSynonyms = [tup for lst in allSynonyms for tup in lst]
             #print(len(allSynonyms)) 
             # For party factor alone =>Length should be 187*84=15708 OR len(words_of_interest)*len(mp-in-same-party pairs)
             # For party-time factor => Length should be 187*42=7854 OR len(w_of_int)*len(mp-in-same-party-same-time pairs)
@@ -551,12 +628,12 @@ class ParliamentDataHandler(object):
             # Change name for the pkl and txt files as per synonym-making factor, e.g. synonyms-party-time, etc
 
             with open(self.synPicklePath, 'wb') as f:
-                pickle.dump(allSynonyms, f)
+                pickle.dump(total_dict, f)
 
             with open(self.synTextPath,'w') as f:
-                for tpl in allSynonyms:
-                    for mptime in tpl:
-                        f.write(mptime)
+                for _, v in total_dict:
+                    for syn_str in v:
+                        f.write(syn_str.stringify())
                         f.write(' ')
                     f.write('\n')
         else:
@@ -575,13 +652,17 @@ class ParliamentDataHandler(object):
         # iterate over syn_df first because it takes time to load model.
         for row in syn_df_batch.itertuples():
             model = gensim.models.Word2Vec.load(row.full_model_path)
-            if row.mpNamePartyInfo != 'dummy':
-                for word in self.words_of_interest:
-                    synonymString = f"{word}-{row.time}-{row.speaker.replace(' ','-')}-{row.mpNamePartyInfo}"
-                    if word in model.wv.index_to_key:
-                        result[index_count, :] = model.wv[word]
-                        index_to_key.append(synonymString)
-                        index_count += 1
+            for word in self.words_of_interest:
+                syn = synonym_item(
+                    word = word,
+                    time=row.time,
+                    speaker=row.speaker.replace(' ','_'),
+                    party=row.party
+                )
+                if word in model.wv.index_to_key:
+                    result[index_count, :] = model.wv[word]
+                    index_to_key.append(syn.stringify())
+                    index_count += 1
 
         # POST PROCESSING:
         assert result[~np.all(result == 0, axis=1)].shape[0] == index_count
@@ -598,7 +679,7 @@ class ParliamentDataHandler(object):
 
     def retrofit_create_input_vectors(self, workers = None, overwrite=False):
 
-        self.logger.info('Retrofit: Create Input Vectors')
+        self.logger.info('RETROFIT - CREATE INPUT VECTORS')
         self.vectorFileName = os.path.join(self.retrofit_outdir,f'vectors_{self.retrofit_factor}.hdf5')
         self.vectorIndexFileName = os.path.join(self.retrofit_outdir,f'vector_index_to_key_{self.parliament_name}.pkl')
 
@@ -608,39 +689,50 @@ class ParliamentDataHandler(object):
         first=True
         if (os.path.isfile(self.vectorFileName) and overwrite) or not os.path.isfile(self.vectorFileName):
 
-            # PREP DF
+            # Load in detected sysnonyms for each word
             with open(self.synPicklePath, 'rb') as f:
                 synonyms = pickle.load(f)
 
-            firstSyns = [tup[0] for tup in synonyms]
-            secondSyns = [tup[1] for tup in synonyms]
-            synonymsList = firstSyns+secondSyns
-            uniqueSynonymsList = set(synonymsList)
+            # split tuples of synonyms up
+            # firstSyns = [tup[0] for tup in synonyms]
+            # secondSyns = [tup[1] for tup in synonyms]
+            # synonymsList = firstSyns+secondSyns
+            self.total_syn_list = [v for v in synonyms.values()]
+            self.total_syn_list = [item for sublist in self.total_syn_list for item in sublist]
+            # uniqueSynonymsList = set(total_syn_list)
 
             syn_df = pd.DataFrame(columns = ['full_model_path','modelKey', 'time', 'speaker', 'party', 'debate', 'debate_id'])
             syn_df['full_model_path'] = self.retrofit_model_paths
             syn_df['modelKey'] = [os.path.split(i)[-1] for i in self.retrofit_model_paths]
             syn_df['time'] = syn_df['modelKey'].apply(lambda x: x.split('df_')[1].split('_')[0])
             syn_df['speaker'] = syn_df['modelKey'].apply(lambda x: x.split('df_')[1].split('_')[1])
+            syn_df['speaker'] = syn_df['speaker'].apply(lambda x: x.replace(' ','_'))
             syn_df['party'] = syn_df['speaker'].apply(lambda x: self.retrofit_prep_df[self.retrofit_prep_df['speaker'] == x]['party'].iat[0])
-            syn_df['debate'] = syn_df.apply(lambda x: self.retrofit_prep_df[(self.retrofit_prep_df['speaker'] == x.speaker) & (self.retrofit_prep_df['df_name'].isin(x.time))]['debate'].iat[0], axis=1)
-            syn_df['debate_id'] = syn_df.apply(lambda x: self.retrofit_prep_df[(self.retrofit_prep_df['speaker'] == x.speaker) & (self.retrofit_prep_df['df_name'].isin(x.time))]['debate_id'].iat[0], axis=1)
+            # syn_df['debate'] = syn_df.apply(lambda x: self.retrofit_prep_df[(self.retrofit_prep_df['speaker'] == x.speaker) & (self.retrofit_prep_df['df_name'].isin(x.time))]['debate'].iat[0], axis=1)
+            # syn_df['debate_id'] = syn_df.apply(lambda x: self.retrofit_prep_df[(self.retrofit_prep_df['speaker'] == x.speaker) & (self.retrofit_prep_df['df_name'].isin(x.time))]['debate_id'].iat[0], axis=1)
 
             # mpNamePartyInfo is meant to have stuff like '-Con' for Conservatives
             mpNames = []
-            for row in syn_df.itertuples():
-                # To ensure we don't match the likes of MP id 16 with MP id 216
-                mpToSearch = f"-{row.speaker.replace(' ','-')}-"
-                mpName='dummy'
-                for syn in uniqueSynonymsList:
-                    if(mpToSearch in syn):
-                        mpName = syn.split(mpToSearch)[1]
-                        break
-                mpNames.append('default') if not mpName else mpNames.append(mpName)
-            syn_df['mpNamePartyInfo'] = mpNames
-            if first:
-                self.logger.info(f'example mpNamePartyInfo: {mpName}')
-                first=False
+
+            self.logger.info(f'RETROFIT - CHECKING WHICH SPEAKERS TO KEEP WITH GENEREATED SYNONYMS...')
+            # iterate over each speaker model in syn_df. Then search the unique synonym list to see if they have words in there. If so, save the associated party info.
+            speakers_in_syn_list = set([i.speaker for i in self.total_syn_list])
+            syn_df = syn_df[syn_df['speaker'].isin(speakers_in_syn_list)]
+            self.logger.info(f'RETROFIT - DONE CHECKING WHICH SPEAKERS TO KEEP WITH GENEREATED SYNONYMS.')
+
+
+            # for row in syn_df.itertuples():
+            #     # To ensure we don't match the likes of MP id 16 with MP id 216
+            #     mpToSearch = row.speaker.replace(' ','_')
+            #     # mpName='dummy'
+            #     for syn in total_syn_list:
+            #         if mpToSearch == syn.speaker: 
+            #             break
+            #     mpNames.append('default') if not mpName else mpNames.append(mpName)
+            # syn_df['mpNamePartyInfo'] = mpNames
+            # if first:
+            #     self.logger.info(f'example mpNamePartyInfo: {mpName}')
+            #     first=False
 
             # retrieve required vector size from a file
             temp_model = gensim.models.Word2Vec.load(self.retrofit_model_paths[0])

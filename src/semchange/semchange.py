@@ -487,6 +487,7 @@ class ParliamentDataHandler(object):
         """
 
         self.logger.info(f'RETROFIT - CREATE SYNONYMS - GENERATE IDENTIFIERS FOR WORD: {word}')
+        self.logger.info(f"RETROFIT FACTOR: {self.retrofit_factor}")
         parties = list(data.party.unique())
         parties = [i for i in parties if isinstance(i, str)]
         # To fix party names like 'Scottish National Party by inserting hyphens between
@@ -496,7 +497,7 @@ class ParliamentDataHandler(object):
         debate_id_set = set()
         for debate_id_list in data['debate_id']:
             for debate_id in debate_id_list:
-                debate_id_set.add(debate_id)
+                debate_id_set.add(int(debate_id))
         assert len(debate_id_set) > 0
         debate_id_list = list(debate_id_set)
 
@@ -510,7 +511,7 @@ class ParliamentDataHandler(object):
             'debate': debate_id_list,
         }
         identifier_factors = []
-        for potential_factor in ['party', 'debate', 'time']:
+        for potential_factor in ['party', 'time', 'debate']:
             if potential_factor in factor:
                 identifier_factors.append(identifier_dict[potential_factor])
                 self.logger.debug(f'added {potential_factor}')
@@ -540,7 +541,7 @@ class ParliamentDataHandler(object):
                         selected_df = selected_df[selected_df['time']==identifier.time]
                         self.logger.debug(f'Time factor detected for selected df')
                     if factor == 'debate':
-                        selected_df = selected_df[selected_df['debate_id'].apply(lambda x: identifier.debate in x)]
+                        selected_df = selected_df[selected_df['debate_id'].apply(lambda x: int(identifier.debate) in x)]
                         self.logger.debug(f'Debate factor detected for selected df')
             temp=False
 

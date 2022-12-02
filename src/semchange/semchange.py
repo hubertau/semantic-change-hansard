@@ -145,7 +145,7 @@ class ParliamentDataHandler(object):
         self.data.loc[(self.data['datetime'] > date) & (self.data['datetime'] < rightbound), 'time'] = 't2'
         self.data.loc[:,'debate_id'] = self.data['agenda'].map(hash)
         self.data.loc[:,'debate'] = self.data['agenda']
-        self.data = self.data[self.data['speaker'].apply(lambda x: x.isinstance(str))]
+        self.data = self.data[self.data['speaker'].apply(lambda x: isinstance(x,str))]
         self.data.loc[:,'speaker'] = self.data['speaker'].apply(lambda x: x.replace(' ', '_'))
 
         self.data_t1 = self.data[(self.data['datetime'] > leftbound) & (self.data['datetime'] <= date)]

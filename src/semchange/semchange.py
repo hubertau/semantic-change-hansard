@@ -487,7 +487,7 @@ class ParliamentDataHandler(object):
         """
 
         self.logger.info(f'RETROFIT - CREATE SYNONYMS - GENERATE IDENTIFIERS FOR WORD: {word}')
-        self.logger.info(f"RETROFIT FACTOR: {self.retrofit_factor}")
+        # self.logger.info(f"RETROFIT FACTOR: {self.retrofit_factor}")
         #TODO: ENSURE DATA SLICING IS CORRECT
         parties = list(data.party.unique())
         parties = [i for i in parties if isinstance(i, str)]
@@ -518,37 +518,37 @@ class ParliamentDataHandler(object):
                 self.logger.debug(f'added {potential_factor}')
 
         identifiers = list(product(*identifier_factors))
-        self.logger.debug(f'Product identifiers: {identifiers[:10]}')
+        # self.logger.debug(f'Product identifiers: {identifiers[:10]}')
         identifiers = [syn_identifier(word, *i) for i in identifiers]
-        self.logger.debug(f'{identifiers[0]}')
-        self.logger.debug(f"Exapmle syn_identifier: {identifiers[0].stringify()}")
-        self.logger.info('RETROFIT - CREATE SYNONYMS - IDENTIFIERS GENERATED')
+        # self.logger.debug(f'{identifiers[0]}')
+        # self.logger.debug(f"Exapmle syn_identifier: {identifiers[0].stringify()}")
+        # self.logger.info('RETROFIT - CREATE SYNONYMS - IDENTIFIERS GENERATED')
 
         # initiate dictionary to save output for
         dictOfSynonyms={}
 
         # Iterate parties & create synonyms where more than one record for a party
         temp = True
-        self.logger.info(f'{len(identifiers)} to scan.')
+        # self.logger.info(f'{len(identifiers)} to scan.')
         count = 0
         for ind, identifier in enumerate(identifiers):
             # self.logger.debug(f'Running identifier {identifier.stringify()}')
 
-            if ind % 10000 == 0:
-                self.logger.info(f'Processed {ind} of {len(identifiers)} = {100*ind/len(identifiers):.2f}%')
+            # if ind % 100000 == 0:
+                # self.logger.info(f'Processed {ind} of {len(identifiers)} = {100*ind/len(identifiers):.2f}%')
 
             selected_df = data.copy()
             for potential_factor in ['party', 'debate', 'time']:
                 if potential_factor in factor: 
                     if potential_factor == 'party':
                         selected_df = selected_df[selected_df['party']==identifier.party]
-                        self.logger.debug(f'Party factor detected for selected df')
+                        # self.logger.debug(f'Party factor detected for selected df')
                     if potential_factor == 'time':
                         selected_df = selected_df[selected_df['time']==identifier.time]
-                        self.logger.debug(f'Time factor detected for selected df')
+                        # self.logger.debug(f'Time factor detected for selected df')
                     if potential_factor == 'debate':
                         selected_df = selected_df[selected_df['debate_id'].apply(lambda x: int(identifier.debate) in x)]
-                        self.logger.debug(f'Debate factor detected for selected df')
+                        # self.logger.debug(f'Debate factor detected for selected df')
             temp=False
 
 
@@ -639,14 +639,17 @@ class ParliamentDataHandler(object):
         self.logger.info(f'RETROFIT - MAIN CREATING SYNONYMS')
         if ((os.path.isfile(self.synPicklePath) and os.path.isfile(self.synTextPath)) and overwrite) or not (os.path.isfile(self.synPicklePath) and os.path.isfile(self.synTextPath)):
 
-            allSynonyms=[]
-            for word in self.words_of_interest:
-                synonymsPerWord = self.retrofit_create_synonyms(self.retrofit_prep_df,word,self.retrofit_factor)
-                #print(len(synonyms)) #Verify length of synonyms
-                allSynonyms.append(synonymsPerWord)
+            # allSynonyms=[]
+            # for word in self.words_of_interest:
+                # synonymsPerWord = self.retrofit_create_synonyms(self.retrofit_prep_df,word,self.retrofit_factor)
+                # print(len(synonyms)) #Verify length of synonyms
+                # allSynonyms.append(synonymsPerWord)
+
+            with ProcessPoolExecutor(max_workers=48) as executor:
+                results = executor.map(self.retrofit_create_synonyms, self.words_of_interest)
 
             # 2022-12-01: Now each synonymsPerWord is a dictionary
-            total_dict = {k:v for i in allSynonyms for k,v in i.items()}
+            total_dict = {k:v for i in results for k,v in i.items()}
 
             #Here it is 84 , which is sum of combinations made 
             #for the three parties (13,3,3)=> no. of combinations is (78,3,3), 78+3+3= 84, hence verified. 

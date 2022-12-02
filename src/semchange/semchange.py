@@ -145,6 +145,7 @@ class ParliamentDataHandler(object):
         self.data.loc[(self.data['datetime'] > date) & (self.data['datetime'] < rightbound), 'time'] = 't2'
         self.data.loc[:,'debate_id'] = self.data['agenda'].map(hash)
         self.data.loc[:,'debate'] = self.data['agenda']
+        self.data = self.data[self.data['speaker'].apply(lambda x: x.isinstance(str))]
         self.data.loc[:,'speaker'] = self.data['speaker'].apply(lambda x: x.replace(' ', '_'))
 
         self.data_t1 = self.data[(self.data['datetime'] > leftbound) & (self.data['datetime'] <= date)]
@@ -493,6 +494,10 @@ class ParliamentDataHandler(object):
         """
 
         self.logger.info(f'RETROFIT - CREATE SYNONYMS - GENERATE IDENTIFIERS FOR WORD: {word}')
+
+        potential_factors = ['party', 'time', 'debate']
+
+
         # self.logger.info(f"RETROFIT FACTOR: {self.retrofit_factor}")
         #TODO: ENSURE DATA SLICING IS CORRECT
         parties = list(self.data.party.unique())
@@ -517,7 +522,7 @@ class ParliamentDataHandler(object):
             'debate': debate_id_list,
         }
         identifier_factors = []
-        for potential_factor in ['party', 'time', 'debate']:
+        for potential_factor in potential_factors:
             if potential_factor in self.retrofit_factor:
                 identifier_factors.append(identifier_dict[potential_factor])
                 self.logger.debug(f'added {potential_factor}')
@@ -543,7 +548,7 @@ class ParliamentDataHandler(object):
                 # self.logger.info(f'Processed {ind} of {len(identifiers)} = {100*ind/len(identifiers):.2f}%')
 
             selected_df = self.data.copy()
-            for potential_factor in ['party', 'debate', 'time']:
+            for potential_factor in potential_factors:
                 if potential_factor in self.retrofit_factor: 
                     if potential_factor == 'party':
                         selected_df = selected_df[selected_df['party']==identifier.party]
@@ -558,7 +563,8 @@ class ParliamentDataHandler(object):
 
             if 'debate' not in self.retrofit_factor:
                 # if no debate, there will be lots of duplicates
-                selected_df = selected_df.groupby(['party', 'time']).first()
+                for potential_factor in  potential_factors:
+                    selected_df = selected_df.groupby(potential_factor).first()
             identifier_synonyms=[]
 
             # speaker_ids=list(selected_df['speaker'].unique())
@@ -566,10 +572,9 @@ class ParliamentDataHandler(object):
             # temp = True
             #TODO: CHECK WHETHER WORD OCCURS IN DEBATE!!
             for row in selected_df.itertuples():
-                # name = row.speaker.replace(' ', '_')
-                # debate_index = row.debate_id.index(int(identifier.debate))
                 if 'debate' in self.retrofit_factor:
-                    if word in row.tokenized:
+                    tokens = set(row.tokenized)
+                    if word in tokens:
                         syn = synonym_item(
                             word = word,
                             time = identifier.time,
@@ -587,24 +592,6 @@ class ParliamentDataHandler(object):
                     )
                     identifier_synonyms.append(syn)
                     count += 1
-            # for name in speaker_ids:
-
-            #     # Concatenating speaker first and last names with '_'
-            #     name = name.replace(' ','_')
-
-            #     #Creating synonym string or key. N.B. We do not include debate as an identifier because that does not help in getting the vectors from models, which are only done on speaker, time, and party.
-            #     syn = synonym_item(
-            #         word = word,
-            #         time = identifier.time,
-            #         speaker = name,
-            #         party  = identifier.party
-            #     )
-            #     # debate = identifier.debate
-            #     # if temp:
-            #     #     self.logger.debug(f'Example: Saving {syn.stringify()}')
-            #     #     temp = False
-            #     # syn_str = f"{word}-{times[ind]}-{name}-{identifier}"
-            #     identifier_synonyms.append(syn)
 
             dictOfSynonyms[identifier.stringify()]=identifier_synonyms
         self.logger.info(f'{count} string saved')

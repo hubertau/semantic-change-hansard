@@ -645,7 +645,7 @@ class ParliamentDataHandler(object):
                 # print(len(synonyms)) #Verify length of synonyms
                 # allSynonyms.append(synonymsPerWord)
 
-            with ProcessPoolExecutor(max_workers=48) as executor:
+            with ProcessPoolExecutor(max_workers=24) as executor:
                 results = executor.map(self.retrofit_create_synonyms, self.words_of_interest)
 
             # 2022-12-01: Now each synonymsPerWord is a dictionary

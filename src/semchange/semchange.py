@@ -85,7 +85,7 @@ class synonym_item:
 class ParliamentDataHandler(object):
 
     def __init__(self, data, tokenized, data_filename = None, verbosity=0):
-        self.unsplit_data = data
+        self.data = data
         self.tokenized = tokenized
         self.split_complete = False
         self.data_filename = data_filename
@@ -93,9 +93,9 @@ class ParliamentDataHandler(object):
         self.logger = logging.getLogger(__name__)
 
     @classmethod
-    def from_csv(cls, unsplit_data, tokenized=False):
-        df = pd.read_csv(unsplit_data)
-        return cls(df, tokenized=tokenized, data_filename=unsplit_data)
+    def from_csv(cls, data, tokenized=False):
+        df = pd.read_csv(data)
+        return cls(df, tokenized=tokenized, data_filename=data)
 
     def _tokenize_one_sentence(self, sentence):
         if isinstance(sentence, str):
@@ -122,13 +122,13 @@ class ParliamentDataHandler(object):
         if self.tokenized:
             return None
         elif (os.path.isfile(savepath) and overwrite) or not os.path.isfile(savepath):
-            tokens = self.unsplit_data.text.apply(self._tokenize_one_sentence)
-            self.unsplit_data['tokenized'] = tokens
-            self.unsplit_data.to_pickle(savepath)
+            tokens = self.data.text.apply(self._tokenize_one_sentence)
+            self.data['tokenized'] = tokens
+            self.data.to_pickle(savepath)
             self.logger.info(f'Saved to {savepath}')
         elif (os.path.isfile(savepath) and not overwrite):
             self.logger.info(f'Loading in tokenized data from {savepath}')
-            self.unsplit_data = pd.read_pickle(savepath)
+            self.data = pd.read_pickle(savepath)
 
     def split_by_date(self, date, split_range):
         date = datetime.datetime.strptime(date, '%Y-%m-%d')
@@ -139,10 +139,16 @@ class ParliamentDataHandler(object):
             leftbound  = date - relativedelta(years=100)
             rightbound = date + relativedelta(years=100)
 
-        self.unsplit_data['datetime'] = pd.to_datetime(self.unsplit_data['date'])
+        self.data['datetime'] = pd.to_datetime(self.data['date'])
 
-        self.data_t1 = self.unsplit_data[(self.unsplit_data['datetime'] > leftbound) & (self.unsplit_data['datetime'] <= date)]
-        self.data_t2 = self.unsplit_data[(self.unsplit_data['datetime'] > date) & (self.unsplit_data['datetime'] < rightbound)]
+        self.data.loc[(self.data['datetime'] > leftbound) & (self.data['datetime'] <= date),'time'] = 't1'
+        self.data.loc[(self.data['datetime'] > date) & (self.data['datetime'] < rightbound), 'time'] = 't2'
+        self.data.loc[:,'debate_id'] = self.data['agenda'].map(hash)
+        self.data.loc[:,'debate'] = self.data['agenda']
+        self.data.loc[:,'speaker'] = self.data['speaker'].apply(lambda x: x.replace(' ', '_'))
+
+        self.data_t1 = self.data[(self.data['datetime'] > leftbound) & (self.data['datetime'] <= date)]
+        self.data_t2 = self.data[(self.data['datetime'] > date) & (self.data['datetime'] < rightbound)]
         self.split_complete = True
 
     def preprocess(self, change = None, no_change = None, model = None, model_output_dir = None, retrofit_outdir=None, overwrite=None):
@@ -391,8 +397,8 @@ class ParliamentDataHandler(object):
                 'debate_id'
                 ]
             )
-        self.data_t1.loc[:,'debate_id'] = self.data_t1['agenda'].map(hash)
-        self.data_t2.loc[:,'debate_id'] = self.data_t2['agenda'].map(hash)
+        self.data_t1['time'] = 't1'
+        self.data_t2['time'] = 't2'
         split_t1 = list(self.data_t1[by].unique())
         split_t2 = list(self.data_t2[by].unique())
         total_split = set(split_t1+split_t2)
@@ -443,8 +449,8 @@ class ParliamentDataHandler(object):
         if retrofit_outdir:
             assert os.path.isdir(retrofit_outdir)
             self.retrofit_outdir = retrofit_outdir
-        if 'parliament' in self.unsplit_data.columns:
-            self.parliament_name = self.unsplit_data['parliament'].iat[0]
+        if 'parliament' in self.data.columns:
+            self.parliament_name = self.data['parliament'].iat[0]
         else:
             self.parliament_name = 'UNKNOWN PARLIAMENT'
 
@@ -474,7 +480,7 @@ class ParliamentDataHandler(object):
             self.retrofit_prep_df = pd.read_json(retrofit_prep_savepath, orient='split')
             self.logger.info(f'Retrofit prep loaded in from {retrofit_prep_savepath}, key = {self.parliament_name}')
 
-    def retrofit_create_synonyms(self, data, word, factor):
+    def retrofit_create_synonyms(self, word):
         """Function to create the synonyms from an input dataframe (retrofit_prep)
 
         Args:
@@ -489,14 +495,14 @@ class ParliamentDataHandler(object):
         self.logger.info(f'RETROFIT - CREATE SYNONYMS - GENERATE IDENTIFIERS FOR WORD: {word}')
         # self.logger.info(f"RETROFIT FACTOR: {self.retrofit_factor}")
         #TODO: ENSURE DATA SLICING IS CORRECT
-        parties = list(data.party.unique())
+        parties = list(self.data.party.unique())
         parties = [i for i in parties if isinstance(i, str)]
         # To fix party names like 'Scottish National Party by inserting hyphens between
         parties = [i.replace(' ','_') for i in parties]
 
         # collect debate id list
         debate_id_set = set()
-        for debate_id_list in data['debate_id']:
+        for debate_id_list in self.data['debate_id']:
             for debate_id in debate_id_list:
                 debate_id_set.add(str(debate_id))
         assert len(debate_id_set) > 0
@@ -504,7 +510,6 @@ class ParliamentDataHandler(object):
 
         # set times
         times = ['t1', 't2']
-        data['time'] = data['df_name'].apply(lambda x: x.split('_')[1])
 
         identifier_dict = {
             'party': parties,
@@ -513,7 +518,7 @@ class ParliamentDataHandler(object):
         }
         identifier_factors = []
         for potential_factor in ['party', 'time', 'debate']:
-            if potential_factor in factor:
+            if potential_factor in self.retrofit_factor:
                 identifier_factors.append(identifier_dict[potential_factor])
                 self.logger.debug(f'added {potential_factor}')
 
@@ -537,9 +542,9 @@ class ParliamentDataHandler(object):
             # if ind % 100000 == 0:
                 # self.logger.info(f'Processed {ind} of {len(identifiers)} = {100*ind/len(identifiers):.2f}%')
 
-            selected_df = data.copy()
+            selected_df = self.data.copy()
             for potential_factor in ['party', 'debate', 'time']:
-                if potential_factor in factor: 
+                if potential_factor in self.retrofit_factor: 
                     if potential_factor == 'party':
                         selected_df = selected_df[selected_df['party']==identifier.party]
                         # self.logger.debug(f'Party factor detected for selected df')
@@ -547,11 +552,13 @@ class ParliamentDataHandler(object):
                         selected_df = selected_df[selected_df['time']==identifier.time]
                         # self.logger.debug(f'Time factor detected for selected df')
                     if potential_factor == 'debate':
-                        selected_df = selected_df[selected_df['debate_id'].apply(lambda x: int(identifier.debate) in x)]
-                        # self.logger.debug(f'Debate factor detected for selected df')
+                        # selected_df = selected_df[selected_df['debate_id'].apply(lambda x: int(identifier.debate) in x)]
+                        selected_df = selected_df[selected_df['debate_id'] == int(identifier.debate)]
             temp=False
 
-
+            if 'debate' not in self.retrofit_factor:
+                # if no debate, there will be lots of duplicates
+                selected_df = selected_df.groupby(['party', 'time']).first()
             identifier_synonyms=[]
 
             # speaker_ids=list(selected_df['speaker'].unique())
@@ -559,13 +566,23 @@ class ParliamentDataHandler(object):
             # temp = True
             #TODO: CHECK WHETHER WORD OCCURS IN DEBATE!!
             for row in selected_df.itertuples():
-                name = row.speaker.replace(' ', '_')
-                debate_index = row.debate_id.index(int(identifier.debate))
-                if word in row.tokens[debate_index]:
+                # name = row.speaker.replace(' ', '_')
+                # debate_index = row.debate_id.index(int(identifier.debate))
+                if 'debate' in self.retrofit_factor:
+                    if word in row.tokenized:
+                        syn = synonym_item(
+                            word = word,
+                            time = identifier.time,
+                            speaker = row.speaker,
+                            party  = row.party
+                        )
+                        identifier_synonyms.append(syn)
+                        count += 1
+                else:
                     syn = synonym_item(
                         word = word,
                         time = identifier.time,
-                        speaker = name,
+                        speaker = row.speaker,
                         party  = row.party
                     )
                     identifier_synonyms.append(syn)
@@ -645,7 +662,7 @@ class ParliamentDataHandler(object):
                 # print(len(synonyms)) #Verify length of synonyms
                 # allSynonyms.append(synonymsPerWord)
 
-            with ProcessPoolExecutor(max_workers=24) as executor:
+            with ProcessPoolExecutor(max_workers=10) as executor:
                 results = executor.map(self.retrofit_create_synonyms, self.words_of_interest)
 
             # 2022-12-01: Now each synonymsPerWord is a dictionary

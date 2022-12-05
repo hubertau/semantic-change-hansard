@@ -520,7 +520,7 @@ class ParliamentDataHandler(object):
         identifiers = []
         for i in raw_identifiers:
             try:
-                identifiers.append(syn_identifier(i))
+                identifiers.append(syn_identifier(*i))
             except:
                 print(i)
         # self.logger.debug(f'{identifiers[0]}')

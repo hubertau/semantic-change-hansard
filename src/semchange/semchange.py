@@ -147,9 +147,9 @@ class ParliamentDataHandler(object):
         # also restrict range to the years we want.
         if split_range is not None:
             to_discard = self.data['time'].isnull()
-            self.logger.debug(f'Row to discard due to time split: {len(to_discard)} out of {len(self.data)} = {100*len(to_discard)/len(self.data):.2f}')
+            self.logger.debug(f'Row to discard due to time split: {len(to_discard)} out of {len(self.data)} = {100*sum(to_discard)/len(self.data):.2f}')
             self.data = self.data[~to_discard]
-            assert len(data['time'].unique()) == 2
+            assert len(self.data['time'].unique()) == 2
         self.data.loc[:,'debate_id'] = self.data['agenda'].map(hash)
         self.data.loc[:,'debate'] = self.data['agenda']
         self.data = self.data[self.data['speaker'].apply(lambda x: isinstance(x,str))]

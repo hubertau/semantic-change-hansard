@@ -147,7 +147,7 @@ class ParliamentDataHandler(object):
         # also restrict range to the years we want.
         if split_range is not None:
             to_discard = self.data['time'].isnull()
-            self.logger.debug(f'Row to discard due to time split: {len(to_discard)} out of {len(self.data)} = {100*sum(to_discard)/len(self.data):.2f}')
+            self.logger.debug(f'Row to discard due to time split: {sum(to_discard)} out of {len(self.data)} = {100*sum(to_discard)/len(self.data):.2f}')
             self.data = self.data[~to_discard]
             assert len(self.data['time'].unique()) == 2
         self.data.loc[:,'debate_id'] = self.data['agenda'].map(hash)
@@ -955,7 +955,7 @@ class ParliamentDataHandler(object):
         length = len(self.data)
         for row in self.data.itertuples():
             if row.Index % 10000 == 0:
-                self.logger.info(f'{row.index} rows processed = {100*row.index/length:.2f}')
+                self.logger.info(f'{row.Index} rows processed = {100*row.Index/length:.2f}')
             overlap = set(words).intersection(row.token_set)
             if len(overlap) == 0:
                 # can be no overlap in terms of interest, if so, continue.

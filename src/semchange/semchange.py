@@ -2,7 +2,6 @@
 Given input data, lemmatize and get metadata
 """
 
-import ast
 import csv
 import datetime
 import functools
@@ -269,21 +268,6 @@ class ParliamentDataHandler(object):
 
         self.model1 = gensim.models.KeyedVectors.load_word2vec_format(avg_vec_savepath_t1, binary=True)
         self.model2 = gensim.models.KeyedVectors.load_word2vec_format(avg_vec_savepath_t2, binary=True)
-
-        # else:
-        #     self.model1 = gensim.models.KeyedVectors.load_word2vec_format(avg_vec_savepath_t1, binary=True)
-        #     self.logger.info(f'PREPROCESS - SPEAKER - Average vectors for t1 loaded in from {avg_vec_savepath_t1}')
-        #     self.model2 = gensim.models.KeyedVectors.load_word2vec_format(avg_vec_savepath_t2, binary=True)
-        #     self.logger.info(f'PREPROCESS - SPEAKER - Average vectors for t2 loaded in from {avg_vec_savepath_t2}')
-
-        #     self.cosine_similarity_df = pd.DataFrame(columns = ('Word', 'Cosine_similarity'))
-        #     for word in self.model1.index_to_key:
-        #         avgVecT1 = self.model1[word]
-        #         avgVecT2 = self.model2[word]
-
-        #         cosSimilarity = self.cosine_similarity(avgVecT1, avgVecT2)
-        #         insert_row = {'Word': word, 'Cosine_similarity': cosSimilarity}
-        #         self.cosine_similarity_df = pd.concat([self.cosine_similarity_df,pd.DataFrame([insert_row])], axis=0)
 
     def _intersection_align_gensim(self, m1, m2, words=None):
         """
@@ -579,7 +563,6 @@ class ParliamentDataHandler(object):
         #     # speaker_ids=list(selected_df['speaker'].unique())
 
         #     # temp = True
-        #     #TODO: CHECK WHETHER WORD OCCURS IN DEBATE!!
         #     for row in selected_df.itertuples():
         #         if 'debate' in self.retrofit_factor:
         #             tokens = set(row.tokenized)
@@ -611,7 +594,7 @@ class ParliamentDataHandler(object):
         output_dict = {k: [] for k in stringified_identifiers}
         length = len(self.data)
         for row in self.data.itertuples():
-            if row.index % 10000:
+            if row.index % 10000 == 0:
                 self.logger.info(f'{row.index} rows processed = {100*row.index/length:.2f}')
             overlap = set(words).intersection(row.token_set)
             if len(overlap) == 0:

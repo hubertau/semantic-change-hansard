@@ -178,96 +178,42 @@ class ParliamentDataHandler(object):
                         output[word] += model.wv.get_vecattr(word, 'count')
                     except:
                         continue
-        return output 
+        return output
 
-    def process_speaker(self, model_output_dir, min_vocab_size=10000, overwrite=False):
-        """Function to load in speaker models, filter by vocab size if necessary.
-        """
-        # collect keys of models that are over the threshold
-        self.valid_split_speeches_by_mp = []
-        first = True
-        self.dictOfModels = {
-            't1': [],
-            't2': []
-        }
-        total_words = set()
-        for model_savepath in self.speaker_saved_models:
-            model = gensim.models.Word2Vec.load(model_savepath)
-            # if len(model.wv.index_to_key) < min_vocab_size:
-                # continue
-            if 't1' in model_savepath:
-                self.dictOfModels['t1'].append(model)
-            else:
-                self.dictOfModels['t2'].append(model)
-            # else:
-            self.valid_split_speeches_by_mp.append(model_savepath)
-            if first:
-                total_words = set(model.wv.index_to_key)
-                # print(total_words)
-                first = False
-            else:
-                total_words.update(model.wv.index_to_key)
-        self.logger.info(f'POSTPROCESS - SPEAKER - Total words: {len(total_words)}')
+    def retrofit_prep(self, retrofit_outdir=None, overwrite=False):
+        if retrofit_outdir:
+            assert os.path.isdir(retrofit_outdir)
+            self.retrofit_outdir = retrofit_outdir
+        if 'parliament' in self.data.columns:
+            self.parliament_name = self.data['parliament'].iat[0]
+        else:
+            self.parliament_name = 'UNKNOWN PARLIAMENT'
 
-        # print, for informational purposes, the number of models that are over the threshold
-        self.logger.info(f'POSTPROCESS - SPEAKER - Number of valid models: {len(self.valid_split_speeches_by_mp)}')
+        retrofit_prep_savepath = os.path.join(retrofit_outdir, f'retrofit_prep.json')
+        self.logger.info(f'Retrofit Prep Path is {retrofit_prep_savepath}')
 
-        avg_vec_savepath_t1 = os.path.join(model_output_dir,'average_vecs_t1.bin')
-        avg_vec_savepath_t2 = os.path.join(model_output_dir,'average_vecs_t2.bin')
+        self.logger.info('Running retrofit prep')
+        if os.path.isfile(retrofit_prep_savepath) and overwrite or not os.path.isfile(retrofit_prep_savepath):
 
-        # if ((os.path.isfile(avg_vec_savepath_t1) or os.path.isfile(avg_vec_savepath_t2)) and overwrite) or not (os.path.isfile(avg_vec_savepath_t1) and os.path.isfile(avg_vec_savepath_t2)):
-        average_vecs = {
-            't1': {},
-            't2': {}
-        }
-        self.cosine_similarity_df = pd.DataFrame(columns = (
-            'Word',
-            'Frequency_t1',
-            'Frequency_t2',
-            'Cosine_similarity'
-        ))
-        self.logger.info(f'POSTPROCESS - SPEAKER - CALCULATING AVERAGE VECTORS')
-        for word in total_words:
-            if self.verbosity > 0:
-                self.logger.info(f'POSTPROCESS - SPEAKER - getting average vector for {word}')
-            avgVecT1, freq_t1 = self.computeAvgVec(word, time='t1')
-            avgVecT2, freq_t2 = self.computeAvgVec(word, time='t2')
+            self.logger.info('Splitting speeches')
 
-            if(np.sum(avgVecT1)==0 or np.sum(avgVecT2)==0):
-                if self.verbosity > 0:
-                    print(str(word) + ' Word not found')
-                continue
-            else:
-                # build results of average vec to save.
-                average_vecs['t1'][word] = avgVecT1
-                average_vecs['t2'][word] = avgVecT2
+            total_mpTimedf = self.split_speeches_df(by='speaker')
+            total_mpTimedf['tokens_delist'] = [','.join(map(str, l)) for l in total_mpTimedf['tokens']]
 
-                # Cos similarity between averages
-                cosSimilarity = self.cosine_similarity(avgVecT1, avgVecT2)
-                insert_row = {
-                    "Word": word,
-                    "Frequency_t1": freq_t1,
-                    "Frequency_t2": freq_t2,
-                    "Cosine_similarity": cosSimilarity
-                }
+            total_mpTimedf['LengthTokens'] = total_mpTimedf.tokens.map(len)
 
-                self.cosine_similarity_df = pd.concat([self.cosine_similarity_df, pd.DataFrame([insert_row])], axis=0)
+            total_mpTimedf.to_json(retrofit_prep_savepath, orient='split', index=False)
 
-        self._save_word2vec_format(
-            fname = avg_vec_savepath_t1,
-            vocab = average_vecs['t1'],
-            vector_size = average_vecs['t1'][list(average_vecs['t1'].keys())[0]].shape[0]
-        )
-        self.logger.info(f'POSTPROCESS - SPEAKER - Average vectors for t1 saved to {avg_vec_savepath_t1}')
-        self._save_word2vec_format(
-            fname = avg_vec_savepath_t2,
-            vocab = average_vecs['t2'],
-            vector_size = average_vecs['t2'][list(average_vecs['t2'].keys())[0]].shape[0]
-        )
-        self.logger.info(f'POSTPROCESS - SPEAKER - Average vectors for t2 saved to {avg_vec_savepath_t2}')
+            self.retrofit_prep_df = total_mpTimedf
 
-        self.model1 = gensim.models.KeyedVectors.load_word2vec_format(avg_vec_savepath_t1, binary=True)
-        self.model2 = gensim.models.KeyedVectors.load_word2vec_format(avg_vec_savepath_t2, binary=True)
+            self.logger.info(f'Retrofit prep saved to {retrofit_prep_savepath}')
+
+        else:
+
+            self.logger.info('Loading in prep from before...')
+
+            self.retrofit_prep_df = pd.read_json(retrofit_prep_savepath, orient='split')
+            self.logger.info(f'Retrofit prep loaded in from {retrofit_prep_savepath}, key = {self.parliament_name}')
 
     def _intersection_align_gensim(self, m1, m2, words=None):
         """
@@ -431,550 +377,6 @@ class ParliamentDataHandler(object):
                 # splitspeeches[dfName]['df_name'] = dfName
 
         return splitspeeches
-
-
-    def retrofit_prep(self, retrofit_outdir=None, overwrite=False):
-        if retrofit_outdir:
-            assert os.path.isdir(retrofit_outdir)
-            self.retrofit_outdir = retrofit_outdir
-        if 'parliament' in self.data.columns:
-            self.parliament_name = self.data['parliament'].iat[0]
-        else:
-            self.parliament_name = 'UNKNOWN PARLIAMENT'
-
-        retrofit_prep_savepath = os.path.join(retrofit_outdir, f'retrofit_prep.json')
-        self.logger.info(f'Retrofit Prep Path is {retrofit_prep_savepath}')
-
-        self.logger.info('Running retrofit prep')
-        if os.path.isfile(retrofit_prep_savepath) and overwrite or not os.path.isfile(retrofit_prep_savepath):
-
-            self.logger.info('Splitting speeches')
-
-            total_mpTimedf = self.split_speeches_df(by='speaker')
-            total_mpTimedf['tokens_delist'] = [','.join(map(str, l)) for l in total_mpTimedf['tokens']]
-
-            total_mpTimedf['LengthTokens'] = total_mpTimedf.tokens.map(len)
-
-            total_mpTimedf.to_json(retrofit_prep_savepath, orient='split', index=False)
-
-            self.retrofit_prep_df = total_mpTimedf
-
-            self.logger.info(f'Retrofit prep saved to {retrofit_prep_savepath}')
-
-        else:
-
-            self.logger.info('Loading in prep from before...')
-
-            self.retrofit_prep_df = pd.read_json(retrofit_prep_savepath, orient='split')
-            self.logger.info(f'Retrofit prep loaded in from {retrofit_prep_savepath}, key = {self.parliament_name}')
-
-    def retrofit_create_synonyms(self, words):
-        """Function to create the synonyms from an input dataframe (retrofit_prep)
-
-        Args:
-            data (_type_): _description_
-            word (_type_): _description_
-            factor (_type_): _description_
-
-        Returns:
-            _type_: _description_
-        """
-
-        self.logger.info(f'RETROFIT - CREATE SYNONYMS FOR WORDS OF INTEREST')
-
-        potential_factors = ['party', 'time', 'debate']
-
-        # self.logger.info(f"RETROFIT FACTOR: {self.retrofit_factor}")
-        #TODO: ENSURE DATA SLICING IS CORRECT
-        parties = list(self.data.party.unique())
-        parties = [i for i in parties if isinstance(i, str)]
-        # To fix party names like 'Scottish National Party by inserting hyphens between
-        # parties = [i.replace(' ','_') for i in parties]
-
-        # collect debate id list
-        # debate_id_set = set()
-        # for debate_id_list in self.data['debate_id']:
-            # debate_id_set.add(str(debate_id))
-        debate_id_set = set(self.data['debate_id'].unique())
-        assert len(debate_id_set) > 0
-        debate_id_list = list(debate_id_set)
-
-        # set times
-        times = ['t1', 't2']
-
-        identifier_dict = {
-            'party': parties,
-            'time': times,
-            'debate': debate_id_list,
-        }
-        identifier_factors = [list(set(words))]
-        for potential_factor in potential_factors:
-            if potential_factor in self.retrofit_factor:
-                identifier_factors.append(identifier_dict[potential_factor])
-                self.logger.debug(f'added {potential_factor}')
-
-        self.logger.debug('Generate identifiers')
-        raw_identifiers = list(product(*identifier_factors))
-        self.logger.debug(f'Product identifiers: {raw_identifiers[:10]}')
-        # identifiers = [syn_identifier(i) for i in raw_identifiers]
-        identifiers = []
-        for i in raw_identifiers:
-            try:
-                identifiers.append(syn_identifier(*i))
-            except:
-                print(i)
-        # self.logger.debug(f'{identifiers[0]}')
-        # self.logger.debug(f"Exapmle syn_identifier: {identifiers[0].stringify()}")
-        # self.logger.info('RETROFIT - CREATE SYNONYMS - IDENTIFIERS GENERATED')
-
-        # initiate dictionary to save output for
-        # dictOfSynonyms={}
-
-        # # Iterate parties & create synonyms where more than one record for a party
-        # temp = True
-        # # self.logger.info(f'{len(identifiers)} to scan.')
-        # count = 0
-        # for ind, identifier in enumerate(identifiers):
-        #     # self.logger.debug(f'Running identifier {identifier.stringify()}')
-
-        #     # if ind % 100000 == 0:
-        #         # self.logger.info(f'Processed {ind} of {len(identifiers)} = {100*ind/len(identifiers):.2f}%')
-
-        #     selected_df = self.data.copy()
-        #     for potential_factor in potential_factors:
-        #         if potential_factor in self.retrofit_factor: 
-        #             if potential_factor == 'party':
-        #                 selected_df = selected_df[selected_df['party']==identifier.party]
-        #                 # self.logger.debug(f'Party factor detected for selected df')
-        #             if potential_factor == 'time':
-        #                 selected_df = selected_df[selected_df['time']==identifier.time]
-        #                 # self.logger.debug(f'Time factor detected for selected df')
-        #             if potential_factor == 'debate':
-        #                 # selected_df = selected_df[selected_df['debate_id'].apply(lambda x: int(identifier.debate) in x)]
-        #                 selected_df = selected_df[selected_df['debate_id'] == int(identifier.debate)]
-        #     temp=False
-
-        #     if 'debate' not in self.retrofit_factor:
-        #         # if no debate, there will be lots of duplicates
-        #         for potential_factor in  potential_factors:
-        #             selected_df = selected_df.groupby(potential_factor).first()
-        #     identifier_synonyms=[]
-
-        #     # speaker_ids=list(selected_df['speaker'].unique())
-
-        #     # temp = True
-        #     for row in selected_df.itertuples():
-        #         if 'debate' in self.retrofit_factor:
-        #             tokens = set(row.tokenized)
-        #             if word in tokens:
-        #                 syn = synonym_item(
-        #                     word = word,
-        #                     time = identifier.time,
-        #                     speaker = row.speaker,
-        #                     party  = row.party
-        #                 )
-        #                 identifier_synonyms.append(syn)
-        #                 count += 1
-        #         else:
-        #             syn = synonym_item(
-        #                 word = word,
-        #                 time = identifier.time,
-        #                 speaker = row.speaker,
-        #                 party  = row.party
-        #             )
-        #             identifier_synonyms.append(syn)
-        #             count += 1
-
-        #     dictOfSynonyms[identifier.stringify()]=identifier_synonyms
-        # self.logger.info(f'{count} string saved')
-
-        # 2022-12-05 New Logic: Can we iterate over the data table only once?
-        # Save output to a dictionary that has identifiers as the keys, and only add in when they match the identifiers.
-        stringified_identifiers = [i.stringify() for i in identifiers]
-        output_dict = {k: [] for k in stringified_identifiers}
-        length = len(self.data)
-        for row in self.data.itertuples():
-            if row.index % 10000 == 0:
-                self.logger.info(f'{row.index} rows processed = {100*row.index/length:.2f}')
-            overlap = set(words).intersection(row.token_set)
-            if len(overlap) == 0:
-                # can be no overlap in terms of interest, if so, continue.
-                continue
-            else:
-                # loop over words that are contained in this debate
-                for word in overlap:
-                    t = None
-                    d = None
-                    if 'time' in self.retrofit_factor:
-                        t = row.time
-                    if 'debate' in self.retrofit_factor:
-                        d = str(row.debate_id)
-                    # create identifier and match against output_dit
-                    temp_identifier = syn_identifier(
-                        word = word,
-                        party = row.party,
-                        time = t,
-                        debate = d
-                    ).stringify()
-                    if temp_identifier in output_dict:
-                        syn_item = synonym_item(
-                            word = word,
-                            time = t,
-                            speaker = row.speaker,
-                            party = row.party,
-                        )
-                        output_dict[temp_identifier].append(syn_item)
-
-        return output_dict
-
-
-    def retrofit_main_create_synonyms(self, factor = None, overwrite=False):
-
-        # Sanity check
-        assert self.retrofit_prep_df is not None
-
-        # Save factor
-        self.retrofit_factor = factor
-
-        # Set paths for pickle and text paths of lexicon
-        self.synPicklePath = os.path.join(self.retrofit_outdir, f'synonyms_{self.parliament_name}_{factor}.pkl')
-        self.synTextPath = os.path.join(self.retrofit_outdir, f'synonyms_{self.parliament_name}_{factor}.txt')
-
-        self.logger.info(f'RETROFIT - MAIN CREATING SYNONYMS')
-        if ((os.path.isfile(self.synPicklePath) and os.path.isfile(self.synTextPath)) and overwrite) or not (os.path.isfile(self.synPicklePath) and os.path.isfile(self.synTextPath)):
-
-            # allSynonyms=[]
-            # for word in self.words_of_interest:
-                # synonymsPerWord = self.retrofit_create_synonyms(self.retrofit_prep_df,word,self.retrofit_factor)
-                # print(len(synonyms)) #Verify length of synonyms
-                # allSynonyms.append(synonymsPerWord)
-
-            # with ProcessPoolExecutor(max_workers=10) as executor:
-                # results = executor.map(self.retrofit_create_synonyms, self.words_of_interest)
-            total_dict = self.retrofit_create_synonyms(self.words_of_interest)
-
-            # 2022-12-01: Now each synonymsPerWord is a dictionary
-            # total_dict = {k:v for i in results for k,v in i.items()}
-
-            #Here it is 84 , which is sum of combinations made 
-            #for the three parties (13,3,3)=> no. of combinations is (78,3,3), 78+3+3= 84, hence verified. 
-
-            # We're capturing synonyms of all words of interest regardless of whether they're part of the models' vocab
-            # Since the same synonyms-dictionary can be used for other models
-            #print(len(words_of_interest),len(allSynonyms))
-
-            # allSynonyms = [tup for lst in allSynonyms for tup in lst]
-            #print(len(allSynonyms)) 
-            # For party factor alone =>Length should be 187*84=15708 OR len(words_of_interest)*len(mp-in-same-party pairs)
-            # For party-time factor => Length should be 187*42=7854 OR len(w_of_int)*len(mp-in-same-party-same-time pairs)
-
-            # Writing synonym files 
-            # Change name for the pkl and txt files as per synonym-making factor, e.g. synonyms-party-time, etc
-
-            with open(self.synPicklePath, 'wb') as f:
-                pickle.dump(total_dict, f)
-
-            with open(self.synTextPath,'w') as f:
-                for _, v in total_dict:
-                    for syn_str in v:
-                        f.write(syn_str.stringify())
-                        f.write(' ')
-                    f.write('\n')
-        else:
-            self.logger.info('Retrofit Synonyms already created')
-
-    def _retrofit_one_batch(self, syn_df_batch):
-
-        this_logger = logging.getLogger(__name__)
-        index_to_key = []
-        result = np.zeros(
-            shape=(len(syn_df_batch)*len(self.words_of_interest), self.vector_size)
-        )
-
-        this_logger.info(f'Processing index {syn_df_batch.index.start} to {syn_df_batch.index.stop}')
-        index_count = 0
-        # iterate over syn_df first because it takes time to load model.
-        for row in syn_df_batch.itertuples():
-            model = gensim.models.Word2Vec.load(row.full_model_path)
-            for word in self.words_of_interest:
-                syn = synonym_item(
-                    word = word,
-                    time=row.time,
-                    speaker=row.speaker.replace(' ','_'),
-                    party=row.party
-                )
-                if word in model.wv.index_to_key:
-                    result[index_count, :] = model.wv[word]
-                    index_to_key.append(syn.stringify())
-                    index_count += 1
-
-        # POST PROCESSING:
-        assert result[~np.all(result == 0, axis=1)].shape[0] == index_count
-        assert index_count == len(index_to_key)
-        result = result[~np.all(result == 0, axis=1)]
-
-        this_logger.info(f'COMPLETE index {syn_df_batch.index.start} to {syn_df_batch.index.stop}')
-
-        return index_to_key, result
-
-    def _df_batch_generator(self, df, n):
-        for i in range(0,df.shape[0],n):
-            yield df[i:i+n]
-
-    def retrofit_create_input_vectors(self, workers = None, overwrite=False):
-
-        self.logger.info('RETROFIT - CREATE INPUT VECTORS')
-        self.vectorFileName = os.path.join(self.retrofit_outdir,f'vectors_{self.retrofit_factor}.hdf5')
-        self.vectorIndexFileName = os.path.join(self.retrofit_outdir,f'vector_index_to_key_{self.parliament_name}.pkl')
-
-        # sanity check that we do have retrofit savepaths readily accesible
-        assert len(self.retrofit_model_paths) > 0
-
-        first=True
-        if (os.path.isfile(self.vectorFileName) and overwrite) or not os.path.isfile(self.vectorFileName):
-
-            # Load in detected sysnonyms for each word
-            with open(self.synPicklePath, 'rb') as f:
-                synonyms = pickle.load(f)
-
-            # split tuples of synonyms up
-            # firstSyns = [tup[0] for tup in synonyms]
-            # secondSyns = [tup[1] for tup in synonyms]
-            # synonymsList = firstSyns+secondSyns
-            self.total_syn_list = [v for v in synonyms.values()]
-            self.total_syn_list = [item for sublist in self.total_syn_list for item in sublist]
-            # uniqueSynonymsList = set(total_syn_list)
-
-            syn_df = pd.DataFrame(columns = ['full_model_path','modelKey', 'time', 'speaker', 'party', 'debate', 'debate_id'])
-            syn_df['full_model_path'] = self.retrofit_model_paths
-            syn_df['modelKey'] = [os.path.split(i)[-1] for i in self.retrofit_model_paths]
-            syn_df['time'] = syn_df['modelKey'].apply(lambda x: x.split('df_')[1].split('_')[0])
-            syn_df['speaker'] = syn_df['modelKey'].apply(lambda x: x.split('df_')[1].split('_')[1])
-            syn_df['speaker'] = syn_df['speaker'].apply(lambda x: x.replace(' ','_'))
-            syn_df['party'] = syn_df['speaker'].apply(lambda x: self.retrofit_prep_df[self.retrofit_prep_df['speaker'] == x]['party'].iat[0])
-            # syn_df['debate'] = syn_df.apply(lambda x: self.retrofit_prep_df[(self.retrofit_prep_df['speaker'] == x.speaker) & (self.retrofit_prep_df['df_name'].isin(x.time))]['debate'].iat[0], axis=1)
-            # syn_df['debate_id'] = syn_df.apply(lambda x: self.retrofit_prep_df[(self.retrofit_prep_df['speaker'] == x.speaker) & (self.retrofit_prep_df['df_name'].isin(x.time))]['debate_id'].iat[0], axis=1)
-
-            # mpNamePartyInfo is meant to have stuff like '-Con' for Conservatives
-            # mpNames = []
-
-            self.logger.info(f'RETROFIT - CHECKING WHICH SPEAKERS TO KEEP WITH GENEREATED SYNONYMS...')
-            # iterate over each speaker model in syn_df. Then search the unique synonym list to see if they have words in there. If so, save the associated party info.
-            speakers_in_syn_list = set([i.speaker for i in self.total_syn_list])
-            syn_df = syn_df[syn_df['speaker'].isin(speakers_in_syn_list)]
-            self.logger.info(f'RETROFIT - DONE CHECKING WHICH SPEAKERS TO KEEP WITH GENEREATED SYNONYMS.')
-
-
-            # for row in syn_df.itertuples():
-            #     # To ensure we don't match the likes of MP id 16 with MP id 216
-            #     mpToSearch = row.speaker.replace(' ','_')
-            #     # mpName='dummy'
-            #     for syn in total_syn_list:
-            #         if mpToSearch == syn.speaker: 
-            #             break
-            #     mpNames.append('default') if not mpName else mpNames.append(mpName)
-            # syn_df['mpNamePartyInfo'] = mpNames
-            # if first:
-            #     self.logger.info(f'example mpNamePartyInfo: {mpName}')
-            #     first=False
-
-            # retrieve required vector size from a file
-            temp_model = gensim.models.Word2Vec.load(self.retrofit_model_paths[0])
-            temp_vec = temp_model.wv[temp_model.wv.index_to_key[0]]
-            self.vector_size = temp_vec.shape[0]
-
-            write=True
-            with h5py.File(self.vectorFileName,'a') as f:
-                if self.parliament_name in f.keys() and overwrite:
-                    del f[self.parliament_name]
-                elif self.parliament_name in f.keys() and not overwrite:
-                    write=False
-
-            if not write:
-                self.logger.info('Data already exists in hdf5 file, not generating new data')
-            else:
-                if workers is None:
-                    workers = os.cpu_count()-1
-                if workers > 1:
-                    self.logger.info(f'Beginning Process Pool Executor with {workers} workers')
-                    with ProcessPoolExecutor(max_workers=workers) as executor:
-                        # results = list(tqdm(executor.map(self._retrofit_one_batch, self._df_batch_generator(syn_df, 100)), total=len(self._df_batch_generator(syn_df,100))))
-                        results = executor.map(self._retrofit_one_batch, self._df_batch_generator(syn_df, 100))
-
-                    # Combine results
-                    index_to_key = []
-                    total_result = np.array([])
-                    for res in results:
-                        index_to_key.extend(res[0])
-                        if total_result.shape == (0,):
-                            total_result = np.concatenate((total_result.reshape(0,res[1].shape[1]), res[1]), axis=0)
-                        else:
-                            total_result = np.concatenate((total_result, res[1]), axis=0)
-                else:
-                    index_to_key, total_result = self._retrofit_one_batch(syn_df)
-
-                with h5py.File(self.vectorFileName, 'a') as f:
-                    f.create_dataset(self.parliament_name, data=total_result, shape=total_result.shape)
-
-                with open(self.vectorIndexFileName, 'wb') as f:
-                    pickle.dump(index_to_key, f)
-
-            return True
-        else:
-            self.logger.info('Retrofit: input vector creation already complete.')
-            return None
-
-    def retrofit_read_word_vecs_hdf5(self, dataset_key=None):
-        """Read in vectors for retrofit from an hdf5 file. The original reading was from a text file which is a recipe for disaster.
-        """
-
-        wordVectors = {}
-        if dataset_key is None:
-            dataset_key = self.parliament_name
-        with h5py.File(self.vectorFileName, 'r') as f:
-            array = f[dataset_key][:]
-        with open(self.vectorIndexFileName, 'rb') as f:
-            index_to_key = pickle.load(f)
-
-        #sanity check. actually length may be different
-        # assert array.shape[0] == len(index_to_key)
-        if array.shape[0] > len(index_to_key):
-            print(f'Sanity check sum: {np.sum(array[index_to_key+1:])}')
-
-        for word, vector in zip(index_to_key, array[:len(index_to_key)]):
-            wordVectors[word] = vector
-
-        return wordVectors
-
-    def retrofit_output_vec(self, model_output_dir = None, overwrite=False):
-        self.logger.info('Retrofit: Generate outfile')
-        self.retrofit_outfile = os.path.join(model_output_dir,f'retrofit_out_{self.retrofit_factor}.txt')
-        if (os.path.isfile(self.retrofit_outfile) and overwrite) or not os.path.isfile(self.retrofit_outfile):
-            wordVecs = self.retrofit_read_word_vecs_hdf5()
-            lexicon = retrofit.read_lexicon(self.synTextPath)
-            numIter = int(10)
-
-            ''' Enrich the word vectors using ppdb and print the enriched vectors '''
-            retrofit.print_word_vecs(retrofit.retrofit(wordVecs, lexicon, numIter), self.retrofit_outfile)
-        else:
-            self.logger.info(f'Retrofit: Retrofit file already exists at {self.retrofit_outfile}')
-
-    def retrofit_post_process(self, change, no_change, model_output_dir):
-        self.logger.info('Retrofit: Post Processing')
-
-        with open(self.retrofit_outfile) as f:
-
-            vecs=[]
-            vec=''
-
-            while True:
-                line = f.readline()
-                if not line:
-                    break
-                if(str(list(line)[0]).isalpha()):
-                    vec=vec.strip()
-                    if(vec!=''):
-                        vecs.append(vec)
-                    vec = line
-                else:
-                    vec+=line
-        vecs = [vec.replace('\n', '')for vec in vecs]
-        self.logger.info(str(len(vecs))+' Retrofitted vectors obtained')
-
-        self.logger.info('Now extracting and mapping to synonym key')
-        dictKeyVector = {}
-        count=0
-        for i in range(len(vecs)):
-
-            vec = vecs[i].strip().split(' ')
-            # Extracting synonym key
-            synKey = vec[0]
-            del(vec[0])
-            vec=[i for i in vec if i!='']
-
-            if(len(vec)!=300):
-                self.logger.info('Vector with dimension<300', synKey,len(vec))
-                count=count+1
-            else:
-                vec =[float(v) for v in vec]
-                dictKeyVector[synKey]=np.array(vec)
-                npVec = np.array(dictKeyVector[synKey])
-        self.logger.info(f'Count of vectors with fewer dimensions that we will not consider: {count}')
-        dfRetrofitted = pd.DataFrame({'vectorKey':list(dictKeyVector.keys()), 'vectors':list(dictKeyVector.values())})
-
-        # Filtering down words of interest as per those present in our vectors 
-        # We're amending the computeAvgVec function accordingly
-        # As it calculated based on processing from models, and here we're only taking vectors. Hence this check here too.
-
-        vectorKeys =list(dfRetrofitted['vectorKey'])
-        # Extracting words from vectors keys
-        words_of_interest = list(set([vk.split('-')[0] for vk in vectorKeys]))
-        # print(words_of_interest, len(words_of_interest))
-
-        self.cosine_similarity_df = pd.DataFrame(columns = (
-            'Word',
-            'Frequency_t1',
-            'Frequency_t2',
-            'Cosine_similarity'
-        ))
-
-        # NOW WE ONLY HAVE THOSE WORDS HERE WHICH ARE PRESENT IN THE VECTORS.
-        # t1Keys = [t for t in list(dictKeyVector.keys()) if 't1' in t]
-        # t2Keys = [t for t in list(dictKeyVector.keys()) if 't2' in t]
-        sims= []
-
-        # Compute average of word in T1 and in T2 and store average vectors and cosine difference   
-        for word in words_of_interest:
-
-            #Provide a list of keys to average computation model for it to
-            # #compute average vector amongst these models
-            # wordT1Keys = [k for k in t1Keys if k.split('-')[0]==word]
-            # wordT2Keys = [k for k in t2Keys if k.split('-')[0]==word]
-
-            #Since here the key itself contains the word we're not simply sending T1 keys but sending word-wise key
-            avgVecT1, _ = self.computeAvgVec(word, time = 't1', dictKeyVector = dictKeyVector)
-            avgVecT2, _ = self.computeAvgVec(word, time = 't2', dictKeyVector = dictKeyVector)
-
-            if(avgVecT1.shape == avgVecT2.shape):
-                # Cos similarity between averages
-                cosSimilarity = self.cosine_similarity(avgVecT1, avgVecT2)
-                sims.append(cosSimilarity)
-            else:
-                self.logger.info('Word not found')
-        word_count_dict_t1 = self._get_retrofit_word_counts(words_of_interest, time='t1')
-        word_count_dict_t2 = self._get_retrofit_word_counts(words_of_interest, time='t2')
-        self.cosine_similarity_df['Word']=words_of_interest
-        self.cosine_similarity_df['Cosine_similarity']=sims
-        self.cosine_similarity_df['Frequency_t1'] = self.cosine_similarity_df['Word'].apply(lambda x: word_count_dict_t1[x])
-        self.cosine_similarity_df['Frequency_t2'] = self.cosine_similarity_df['Word'].apply(lambda x: word_count_dict_t2[x])
-
-        self.cosine_similarity_df.loc[:,'FrequencyRatio'] = self.cosine_similarity_df['Frequency_t1']/self.cosine_similarity_df['Frequency_t2']
-        self.cosine_similarity_df.loc[:,'TotalFrequency'] = self.cosine_similarity_df['Frequency_t1'] + self.cosine_similarity_df['Frequency_t2']
-
-        '''
-        self.cosine_similarity_df_sorted = self.cosine_similarity_df.sort_values(by='Cosine_similarity', ascending=True)
-        self.cosine_similarity_df_sorted'''
-
-        #Assigning change and no-change labels as initially expected
-        self.cosine_similarity_df['semanticDifference']=['default' for i in range(self.cosine_similarity_df.shape[0])]
-        self.cosine_similarity_df.loc[self.cosine_similarity_df['Word'].isin(change), 'semanticDifference'] = 'change' 
-        self.cosine_similarity_df.loc[self.cosine_similarity_df['Word'].isin(no_change), 'semanticDifference'] = 'no_change'
-
-        self.retrofit_dictkeyvector = dictKeyVector
-
-        # Save into word2vec format for nn comparison
-        for t in ['t1','t2']:
-            vocab = {k:v for k,v in dictKeyVector.items() if t in k}
-            self._save_word2vec_format(
-                fname = os.path.join(model_output_dir, f'retrofit_vecs_{t}_{self.retrofit_factor}.bin'),
-                vocab = vocab,
-                vector_size = np.array(vocab[list(vocab.keys())[0]]).shape[0]
-            )
-
-        self.model1 = gensim.models.KeyedVectors.load_word2vec_format(os.path.join(model_output_dir, f'retrofit_vecs_t1_{self.retrofit_factor}.bin'), binary=True)
-        self.model2 = gensim.models.KeyedVectors.load_word2vec_format(os.path.join(model_output_dir, f'retrofit_vecs_t2_{self.retrofit_factor}.bin'), binary=True)
-
-        self.logger.info('Retrofit: Post Process complete')
 
     def model(self, outdir, overwrite=False, skip_model_check = False ,min_vocab_size = 10000):
         """Function to generate the actual Word2Vec models.
@@ -1234,8 +636,6 @@ class ParliamentDataHandler(object):
             avgEmbedding = np.divide(modelsSum, count)
             return avgEmbedding, word_count
 
-    # def _get_count_over_models(self, word, time='t1', )
-
     def _save_word2vec_format(self, fname, vocab, vector_size, binary=True):
         """Store the input-hidden weight matrix in the same format used by the original
         C word2vec-tool, for compatibility.
@@ -1266,7 +666,6 @@ class ParliamentDataHandler(object):
                     fout.write(gensim.utils.to_utf8(word) + b" " + row.tostring())
                 else:
                     fout.write(gensim.utils.to_utf8("%s %s\n" % (word, ' '.join(repr(val) for val in row))))
-
 
     def woi(self):
 
@@ -1333,6 +732,613 @@ class ParliamentDataHandler(object):
             self.retrofit_create_input_vectors(workers = workers, overwrite=overwrite)
             self.retrofit_output_vec(model_output_dir = model_output_dir, overwrite=overwrite)
             self.retrofit_post_process(self.change, self.no_change, model_output_dir)
+
+    def process_speaker(self, model_output_dir, min_vocab_size=10000, overwrite=False):
+        """Function to load in speaker models, filter by vocab size if necessary.
+        """
+        # collect keys of models that are over the threshold
+        self.valid_split_speeches_by_mp = []
+        first = True
+        self.dictOfModels = {
+            't1': [],
+            't2': []
+        }
+        total_words = set()
+        for model_savepath in self.speaker_saved_models:
+            model = gensim.models.Word2Vec.load(model_savepath)
+            # if len(model.wv.index_to_key) < min_vocab_size:
+                # continue
+            if 't1' in model_savepath:
+                self.dictOfModels['t1'].append(model)
+            else:
+                self.dictOfModels['t2'].append(model)
+            # else:
+            self.valid_split_speeches_by_mp.append(model_savepath)
+            if first:
+                total_words = set(model.wv.index_to_key)
+                # print(total_words)
+                first = False
+            else:
+                total_words.update(model.wv.index_to_key)
+        self.logger.info(f'POSTPROCESS - SPEAKER - Total words: {len(total_words)}')
+
+        # print, for informational purposes, the number of models that are over the threshold
+        self.logger.info(f'POSTPROCESS - SPEAKER - Number of valid models: {len(self.valid_split_speeches_by_mp)}')
+
+        avg_vec_savepath_t1 = os.path.join(model_output_dir,'average_vecs_t1.bin')
+        avg_vec_savepath_t2 = os.path.join(model_output_dir,'average_vecs_t2.bin')
+
+        # if ((os.path.isfile(avg_vec_savepath_t1) or os.path.isfile(avg_vec_savepath_t2)) and overwrite) or not (os.path.isfile(avg_vec_savepath_t1) and os.path.isfile(avg_vec_savepath_t2)):
+        average_vecs = {
+            't1': {},
+            't2': {}
+        }
+        self.cosine_similarity_df = pd.DataFrame(columns = (
+            'Word',
+            'Frequency_t1',
+            'Frequency_t2',
+            'Cosine_similarity'
+        ))
+        self.logger.info(f'POSTPROCESS - SPEAKER - CALCULATING AVERAGE VECTORS')
+        for word in total_words:
+            if self.verbosity > 0:
+                self.logger.info(f'POSTPROCESS - SPEAKER - getting average vector for {word}')
+            avgVecT1, freq_t1 = self.computeAvgVec(word, time='t1')
+            avgVecT2, freq_t2 = self.computeAvgVec(word, time='t2')
+
+            if(np.sum(avgVecT1)==0 or np.sum(avgVecT2)==0):
+                if self.verbosity > 0:
+                    print(str(word) + ' Word not found')
+                continue
+            else:
+                # build results of average vec to save.
+                average_vecs['t1'][word] = avgVecT1
+                average_vecs['t2'][word] = avgVecT2
+
+                # Cos similarity between averages
+                cosSimilarity = self.cosine_similarity(avgVecT1, avgVecT2)
+                insert_row = {
+                    "Word": word,
+                    "Frequency_t1": freq_t1,
+                    "Frequency_t2": freq_t2,
+                    "Cosine_similarity": cosSimilarity
+                }
+
+                self.cosine_similarity_df = pd.concat([self.cosine_similarity_df, pd.DataFrame([insert_row])], axis=0)
+
+        self._save_word2vec_format(
+            fname = avg_vec_savepath_t1,
+            vocab = average_vecs['t1'],
+            vector_size = average_vecs['t1'][list(average_vecs['t1'].keys())[0]].shape[0]
+        )
+        self.logger.info(f'POSTPROCESS - SPEAKER - Average vectors for t1 saved to {avg_vec_savepath_t1}')
+        self._save_word2vec_format(
+            fname = avg_vec_savepath_t2,
+            vocab = average_vecs['t2'],
+            vector_size = average_vecs['t2'][list(average_vecs['t2'].keys())[0]].shape[0]
+        )
+        self.logger.info(f'POSTPROCESS - SPEAKER - Average vectors for t2 saved to {avg_vec_savepath_t2}')
+
+        self.model1 = gensim.models.KeyedVectors.load_word2vec_format(avg_vec_savepath_t1, binary=True)
+        self.model2 = gensim.models.KeyedVectors.load_word2vec_format(avg_vec_savepath_t2, binary=True)
+
+    def retrofit_create_synonyms(self, words):
+        """Function to create the synonyms from an input dataframe (retrofit_prep)
+
+        Args:
+            data (_type_): _description_
+            word (_type_): _description_
+            factor (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
+
+        self.logger.info(f'RETROFIT - CREATE SYNONYMS FOR WORDS OF INTEREST')
+
+        potential_factors = ['party', 'time', 'debate']
+
+        # self.logger.info(f"RETROFIT FACTOR: {self.retrofit_factor}")
+        #TODO: ENSURE DATA SLICING IS CORRECT
+        parties = list(self.data.party.unique())
+        parties = [i for i in parties if isinstance(i, str)]
+        # To fix party names like 'Scottish National Party by inserting hyphens between
+        # parties = [i.replace(' ','_') for i in parties]
+
+        # collect debate id list
+        # debate_id_set = set()
+        # for debate_id_list in self.data['debate_id']:
+            # debate_id_set.add(str(debate_id))
+        debate_id_set = set(self.data['debate_id'].astype(str).unique())
+        assert len(debate_id_set) > 0
+        debate_id_list = list(debate_id_set)
+
+        # set times
+        times = ['t1', 't2']
+
+        identifier_dict = {
+            'party': parties,
+            'time': times,
+            'debate': debate_id_list,
+        }
+        identifier_factors = [list(set(words))]
+        for potential_factor in potential_factors:
+            if potential_factor in self.retrofit_factor:
+                identifier_factors.append(identifier_dict[potential_factor])
+                self.logger.debug(f'added {potential_factor}')
+
+        # self.logger.debug('Generate identifiers')
+        # raw_identifiers = list(product(*identifier_factors))
+        # self.logger.debug(f'{len(raw_identifiers)} product identifiers, e.g.: {raw_identifiers[:10]}')
+        # identifiers = [syn_identifier(i) for i in raw_identifiers]
+        # identifiers = [syn_identifier(*i) for i in raw_identifiers]
+        # self.logger.debug(f'{identifiers[0]}')
+        # self.logger.debug(f"Exapmle syn_identifier: {identifiers[0].stringify()}")
+        # self.logger.info('RETROFIT - CREATE SYNONYMS - IDENTIFIERS GENERATED')
+
+        # initiate dictionary to save output for
+        # dictOfSynonyms={}
+
+        # # Iterate parties & create synonyms where more than one record for a party
+        # temp = True
+        # # self.logger.info(f'{len(identifiers)} to scan.')
+        # count = 0
+        # for ind, identifier in enumerate(identifiers):
+        #     # self.logger.debug(f'Running identifier {identifier.stringify()}')
+
+        #     # if ind % 100000 == 0:
+        #         # self.logger.info(f'Processed {ind} of {len(identifiers)} = {100*ind/len(identifiers):.2f}%')
+
+        #     selected_df = self.data.copy()
+        #     for potential_factor in potential_factors:
+        #         if potential_factor in self.retrofit_factor: 
+        #             if potential_factor == 'party':
+        #                 selected_df = selected_df[selected_df['party']==identifier.party]
+        #                 # self.logger.debug(f'Party factor detected for selected df')
+        #             if potential_factor == 'time':
+        #                 selected_df = selected_df[selected_df['time']==identifier.time]
+        #                 # self.logger.debug(f'Time factor detected for selected df')
+        #             if potential_factor == 'debate':
+        #                 # selected_df = selected_df[selected_df['debate_id'].apply(lambda x: int(identifier.debate) in x)]
+        #                 selected_df = selected_df[selected_df['debate_id'] == int(identifier.debate)]
+        #     temp=False
+
+        #     if 'debate' not in self.retrofit_factor:
+        #         # if no debate, there will be lots of duplicates
+        #         for potential_factor in  potential_factors:
+        #             selected_df = selected_df.groupby(potential_factor).first()
+        #     identifier_synonyms=[]
+
+        #     # speaker_ids=list(selected_df['speaker'].unique())
+
+        #     # temp = True
+        #     for row in selected_df.itertuples():
+        #         if 'debate' in self.retrofit_factor:
+        #             tokens = set(row.tokenized)
+        #             if word in tokens:
+        #                 syn = synonym_item(
+        #                     word = word,
+        #                     time = identifier.time,
+        #                     speaker = row.speaker,
+        #                     party  = row.party
+        #                 )
+        #                 identifier_synonyms.append(syn)
+        #                 count += 1
+        #         else:
+        #             syn = synonym_item(
+        #                 word = word,
+        #                 time = identifier.time,
+        #                 speaker = row.speaker,
+        #                 party  = row.party
+        #             )
+        #             identifier_synonyms.append(syn)
+        #             count += 1
+
+        #     dictOfSynonyms[identifier.stringify()]=identifier_synonyms
+        # self.logger.info(f'{count} string saved')
+
+        # 2022-12-05 New Logic: Can we iterate over the data table only once?
+        # Save output to a dictionary that has identifiers as the keys, and only add in when they match the identifiers.
+        # stringified_identifiers = [i.stringify() for i in identifiers]
+        # output_dict = {k: [] for k in stringified_identifiers}
+        output_dict = defaultdict(list)
+        length = len(self.data)
+        for row in self.data.itertuples():
+            if row.index % 10000 == 0:
+                self.logger.info(f'{row.index} rows processed = {100*row.index/length:.2f}')
+            overlap = set(words).intersection(row.token_set)
+            if len(overlap) == 0:
+                # can be no overlap in terms of interest, if so, continue.
+                continue
+            else:
+                # loop over words that are contained in this debate
+                for word in overlap:
+                    t = None
+                    d = None
+                    if 'time' in self.retrofit_factor:
+                        t = row.time
+                    if 'debate' in self.retrofit_factor:
+                        d = str(row.debate_id)
+                    # create identifier and match against output_dit
+                    temp_identifier = syn_identifier(
+                        word = word,
+                        party = row.party,
+                        time = t,
+                        debate = d
+                    ).stringify()
+                    if temp_identifier in output_dict:
+                        syn_item = synonym_item(
+                            word = word,
+                            time = t,
+                            speaker = row.speaker,
+                            party = row.party,
+                        )
+                        output_dict[temp_identifier.stringify()].append(syn_item)
+
+        # self.logger.info('Clean output to remove empty lists')
+
+
+        return output_dict
+
+    def retrofit_main_create_synonyms(self, factor = None, overwrite=False):
+
+        # Sanity check
+        assert self.retrofit_prep_df is not None
+
+        # Save factor
+        self.retrofit_factor = factor
+
+        # Set paths for pickle and text paths of lexicon
+        self.synPicklePath = os.path.join(self.retrofit_outdir, f'synonyms_{self.parliament_name}_{factor}.pkl')
+        self.synTextPath = os.path.join(self.retrofit_outdir, f'synonyms_{self.parliament_name}_{factor}.txt')
+
+        self.logger.info(f'RETROFIT - MAIN CREATING SYNONYMS')
+        if ((os.path.isfile(self.synPicklePath) and os.path.isfile(self.synTextPath)) and overwrite) or not (os.path.isfile(self.synPicklePath) and os.path.isfile(self.synTextPath)):
+
+            # allSynonyms=[]
+            # for word in self.words_of_interest:
+                # synonymsPerWord = self.retrofit_create_synonyms(self.retrofit_prep_df,word,self.retrofit_factor)
+                # print(len(synonyms)) #Verify length of synonyms
+                # allSynonyms.append(synonymsPerWord)
+
+            # with ProcessPoolExecutor(max_workers=10) as executor:
+                # results = executor.map(self.retrofit_create_synonyms, self.words_of_interest)
+            total_dict = self.retrofit_create_synonyms(self.words_of_interest)
+
+            # 2022-12-01: Now each synonymsPerWord is a dictionary
+            # total_dict = {k:v for i in results for k,v in i.items()}
+
+            #Here it is 84 , which is sum of combinations made 
+            #for the three parties (13,3,3)=> no. of combinations is (78,3,3), 78+3+3= 84, hence verified. 
+
+            # We're capturing synonyms of all words of interest regardless of whether they're part of the models' vocab
+            # Since the same synonyms-dictionary can be used for other models
+            #print(len(words_of_interest),len(allSynonyms))
+
+            # allSynonyms = [tup for lst in allSynonyms for tup in lst]
+            #print(len(allSynonyms)) 
+            # For party factor alone =>Length should be 187*84=15708 OR len(words_of_interest)*len(mp-in-same-party pairs)
+            # For party-time factor => Length should be 187*42=7854 OR len(w_of_int)*len(mp-in-same-party-same-time pairs)
+
+            # Writing synonym files 
+            # Change name for the pkl and txt files as per synonym-making factor, e.g. synonyms-party-time, etc
+
+            with open(self.synPicklePath, 'wb') as f:
+                pickle.dump(total_dict, f)
+
+            with open(self.synTextPath,'w') as f:
+                for _, v in total_dict:
+                    for syn_str in v:
+                        f.write(syn_str.stringify())
+                        f.write(' ')
+                    f.write('\n')
+        else:
+            self.logger.info('Retrofit Synonyms already created')
+
+    def _retrofit_one_batch(self, syn_df_batch):
+
+        this_logger = logging.getLogger(__name__)
+        index_to_key = []
+        result = np.zeros(
+            shape=(len(syn_df_batch)*len(self.words_of_interest), self.vector_size)
+        )
+
+        this_logger.info(f'Processing index {syn_df_batch.index.start} to {syn_df_batch.index.stop}')
+        index_count = 0
+        # iterate over syn_df first because it takes time to load model.
+        for row in syn_df_batch.itertuples():
+            model = gensim.models.Word2Vec.load(row.full_model_path)
+            for word in self.words_of_interest:
+                syn = synonym_item(
+                    word = word,
+                    time=row.time,
+                    speaker=row.speaker,
+                    party=row.party
+                )
+                if word in model.wv.index_to_key:
+                    result[index_count, :] = model.wv[word]
+                    index_to_key.append(syn.stringify())
+                    index_count += 1
+
+        # POST PROCESSING:
+        assert result[~np.all(result == 0, axis=1)].shape[0] == index_count
+        assert index_count == len(index_to_key)
+        result = result[~np.all(result == 0, axis=1)]
+
+        this_logger.info(f'COMPLETE index {syn_df_batch.index.start} to {syn_df_batch.index.stop}')
+
+        return index_to_key, result
+
+    def _df_batch_generator(self, df, n):
+        for i in range(0,df.shape[0],n):
+            yield df[i:i+n]
+
+    def retrofit_create_input_vectors(self, workers = None, overwrite=False):
+        """This function collects the vectors required for retrofitting from the speaker Word2Vec models. Some superfluous vectors will be collected, but there will be no reference errors when it comes to retrofitting.
+
+        Args:
+            workers (_type_, optional): _description_. Defaults to None.
+            overwrite (bool, optional): _description_. Defaults to False.
+
+        Returns:
+            _type_: _description_
+        """
+
+        self.logger.info('RETROFIT - CREATE INPUT VECTORS')
+
+        # define output filenames
+        self.vectorFileName = os.path.join(self.retrofit_outdir,f'vectors_{self.retrofit_factor}.hdf5')
+        self.vectorIndexFileName = os.path.join(self.retrofit_outdir,f'vector_index_to_key_{self.parliament_name}.pkl')
+
+        # sanity check that we do have retrofit savepaths readily accesible
+        assert len(self.retrofit_model_paths) > 0
+
+        first=True
+
+        if (os.path.isfile(self.vectorFileName) and overwrite) or not os.path.isfile(self.vectorFileName):
+
+            # Load in detected sysnonyms for each word
+            with open(self.synPicklePath, 'rb') as f:
+                synonyms = pickle.load(f)
+
+            # split tuples of synonyms up
+            # firstSyns = [tup[0] for tup in synonyms]
+            # secondSyns = [tup[1] for tup in synonyms]
+            # synonymsList = firstSyns+secondSyns
+            self.total_syn_list = [v for v in synonyms.values()]
+            self.total_syn_list = [item for sublist in self.total_syn_list for item in sublist]
+            # uniqueSynonymsList = set(total_syn_list)
+
+            syn_df = pd.DataFrame(columns = ['full_model_path','modelKey', 'time', 'speaker', 'party', 'debate', 'debate_id'])
+            syn_df['full_model_path'] = self.retrofit_model_paths
+            syn_df['modelKey'] = [os.path.split(i)[-1] for i in self.retrofit_model_paths]
+            syn_df['time'] = syn_df['modelKey'].apply(lambda x: x.split('df_')[1].split('_')[0])
+            syn_df['speaker'] = syn_df['modelKey'].apply(lambda x: x.split('df_')[1].split('_')[1])
+            syn_df['speaker'] = syn_df['speaker'].apply(lambda x: x.replace(' ','_'))
+            syn_df['party'] = syn_df['speaker'].apply(lambda x: self.retrofit_prep_df[self.retrofit_prep_df['speaker'] == x]['party'].iat[0])
+            # syn_df['debate'] = syn_df.apply(lambda x: self.retrofit_prep_df[(self.retrofit_prep_df['speaker'] == x.speaker) & (self.retrofit_prep_df['df_name'].isin(x.time))]['debate'].iat[0], axis=1)
+            # syn_df['debate_id'] = syn_df.apply(lambda x: self.retrofit_prep_df[(self.retrofit_prep_df['speaker'] == x.speaker) & (self.retrofit_prep_df['df_name'].isin(x.time))]['debate_id'].iat[0], axis=1)
+
+            # mpNamePartyInfo is meant to have stuff like '-Con' for Conservatives
+            # mpNames = []
+
+            self.logger.info(f'RETROFIT - CHECKING WHICH SPEAKERS TO KEEP WITH GENEREATED SYNONYMS...')
+            # iterate over each speaker model in syn_df. Then search the unique synonym list to see if they have words in there. If so, save the associated party info.
+            speakers_in_syn_list = set([i.speaker for i in self.total_syn_list])
+            syn_df = syn_df[syn_df['speaker'].isin(speakers_in_syn_list)]
+            self.logger.info(f'RETROFIT - DONE CHECKING WHICH SPEAKERS TO KEEP WITH GENEREATED SYNONYMS.')
+
+
+            # for row in syn_df.itertuples():
+            #     # To ensure we don't match the likes of MP id 16 with MP id 216
+            #     mpToSearch = row.speaker.replace(' ','_')
+            #     # mpName='dummy'
+            #     for syn in total_syn_list:
+            #         if mpToSearch == syn.speaker: 
+            #             break
+            #     mpNames.append('default') if not mpName else mpNames.append(mpName)
+            # syn_df['mpNamePartyInfo'] = mpNames
+            # if first:
+            #     self.logger.info(f'example mpNamePartyInfo: {mpName}')
+            #     first=False
+
+            # retrieve required vector size from a file
+            temp_model = gensim.models.Word2Vec.load(self.retrofit_model_paths[0])
+            temp_vec = temp_model.wv[temp_model.wv.index_to_key[0]]
+            self.vector_size = temp_vec.shape[0]
+
+            write=True
+            with h5py.File(self.vectorFileName,'a') as f:
+                if self.parliament_name in f.keys() and overwrite:
+                    del f[self.parliament_name]
+                elif self.parliament_name in f.keys() and not overwrite:
+                    write=False
+
+            if not write:
+                self.logger.info('Data already exists in hdf5 file, not generating new data')
+            else:
+                if workers is None:
+                    workers = os.cpu_count()-1
+                if workers > 1:
+                    self.logger.info(f'Beginning Process Pool Executor with {workers} workers')
+                    with ProcessPoolExecutor(max_workers=workers) as executor:
+                        # results = list(tqdm(executor.map(self._retrofit_one_batch, self._df_batch_generator(syn_df, 100)), total=len(self._df_batch_generator(syn_df,100))))
+                        results = executor.map(self._retrofit_one_batch, self._df_batch_generator(syn_df, 100))
+
+                    # Combine results
+                    index_to_key = []
+                    total_result = np.array([])
+                    for res in results:
+                        index_to_key.extend(res[0])
+                        if total_result.shape == (0,):
+                            total_result = np.concatenate((total_result.reshape(0,res[1].shape[1]), res[1]), axis=0)
+                        else:
+                            total_result = np.concatenate((total_result, res[1]), axis=0)
+                else:
+                    index_to_key, total_result = self._retrofit_one_batch(syn_df)
+
+                with h5py.File(self.vectorFileName, 'a') as f:
+                    f.create_dataset(self.parliament_name, data=total_result, shape=total_result.shape)
+
+                with open(self.vectorIndexFileName, 'wb') as f:
+                    pickle.dump(index_to_key, f)
+
+            return True
+        else:
+            self.logger.info('Retrofit: input vector creation already complete.')
+            return None
+
+    def retrofit_read_word_vecs_hdf5(self, dataset_key=None):
+        """Read in vectors for retrofit from an hdf5 file. The original reading was from a text file which is a recipe for disaster.
+        """
+
+        wordVectors = {}
+        if dataset_key is None:
+            dataset_key = self.parliament_name
+        with h5py.File(self.vectorFileName, 'r') as f:
+            array = f[dataset_key][:]
+        with open(self.vectorIndexFileName, 'rb') as f:
+            index_to_key = pickle.load(f)
+
+        #sanity check. actually length may be different
+        # assert array.shape[0] == len(index_to_key)
+        if array.shape[0] > len(index_to_key):
+            print(f'Sanity check sum: {np.sum(array[index_to_key+1:])}')
+
+        for word, vector in zip(index_to_key, array[:len(index_to_key)]):
+            wordVectors[word] = vector
+
+        return wordVectors
+
+    def retrofit_output_vec(self, model_output_dir = None, overwrite=False):
+        self.logger.info('Retrofit: Generate outfile')
+        self.retrofit_outfile = os.path.join(model_output_dir,f'retrofit_out_{self.retrofit_factor}.txt')
+        if (os.path.isfile(self.retrofit_outfile) and overwrite) or not os.path.isfile(self.retrofit_outfile):
+            wordVecs = self.retrofit_read_word_vecs_hdf5()
+            lexicon = retrofit.read_lexicon(self.synTextPath)
+            numIter = int(10)
+
+            ''' Enrich the word vectors using ppdb and print the enriched vectors '''
+            retrofit.print_word_vecs(retrofit.retrofit(wordVecs, lexicon, numIter), self.retrofit_outfile)
+        else:
+            self.logger.info(f'Retrofit: Retrofit file already exists at {self.retrofit_outfile}')
+
+    def retrofit_post_process(self, change, no_change, model_output_dir):
+        self.logger.info('Retrofit: Post Processing')
+
+        with open(self.retrofit_outfile) as f:
+
+            vecs=[]
+            vec=''
+
+            while True:
+                line = f.readline()
+                if not line:
+                    break
+                if(str(list(line)[0]).isalpha()):
+                    vec=vec.strip()
+                    if(vec!=''):
+                        vecs.append(vec)
+                    vec = line
+                else:
+                    vec+=line
+        vecs = [vec.replace('\n', '')for vec in vecs]
+        self.logger.info(str(len(vecs))+' Retrofitted vectors obtained')
+
+        self.logger.info('Now extracting and mapping to synonym key')
+        dictKeyVector = {}
+        count=0
+        for i in range(len(vecs)):
+
+            vec = vecs[i].strip().split(' ')
+            # Extracting synonym key
+            synKey = vec[0]
+            del(vec[0])
+            vec=[i for i in vec if i!='']
+
+            if(len(vec)!=300):
+                self.logger.info('Vector with dimension<300', synKey,len(vec))
+                count=count+1
+            else:
+                vec =[float(v) for v in vec]
+                dictKeyVector[synKey]=np.array(vec)
+                npVec = np.array(dictKeyVector[synKey])
+        self.logger.info(f'Count of vectors with fewer dimensions that we will not consider: {count}')
+        dfRetrofitted = pd.DataFrame({'vectorKey':list(dictKeyVector.keys()), 'vectors':list(dictKeyVector.values())})
+
+        # Filtering down words of interest as per those present in our vectors 
+        # We're amending the computeAvgVec function accordingly
+        # As it calculated based on processing from models, and here we're only taking vectors. Hence this check here too.
+
+        vectorKeys =list(dfRetrofitted['vectorKey'])
+        # Extracting words from vectors keys
+        words_of_interest = list(set([vk.split('-')[0] for vk in vectorKeys]))
+        # print(words_of_interest, len(words_of_interest))
+
+        self.cosine_similarity_df = pd.DataFrame(columns = (
+            'Word',
+            'Frequency_t1',
+            'Frequency_t2',
+            'Cosine_similarity'
+        ))
+
+        # NOW WE ONLY HAVE THOSE WORDS HERE WHICH ARE PRESENT IN THE VECTORS.
+        # t1Keys = [t for t in list(dictKeyVector.keys()) if 't1' in t]
+        # t2Keys = [t for t in list(dictKeyVector.keys()) if 't2' in t]
+        sims= []
+
+        # Compute average of word in T1 and in T2 and store average vectors and cosine difference   
+        for word in words_of_interest:
+
+            #Provide a list of keys to average computation model for it to
+            # #compute average vector amongst these models
+            # wordT1Keys = [k for k in t1Keys if k.split('-')[0]==word]
+            # wordT2Keys = [k for k in t2Keys if k.split('-')[0]==word]
+
+            #Since here the key itself contains the word we're not simply sending T1 keys but sending word-wise key
+            avgVecT1, _ = self.computeAvgVec(word, time = 't1', dictKeyVector = dictKeyVector)
+            avgVecT2, _ = self.computeAvgVec(word, time = 't2', dictKeyVector = dictKeyVector)
+
+            if(avgVecT1.shape == avgVecT2.shape):
+                # Cos similarity between averages
+                cosSimilarity = self.cosine_similarity(avgVecT1, avgVecT2)
+                sims.append(cosSimilarity)
+            else:
+                self.logger.info('Word not found')
+        word_count_dict_t1 = self._get_retrofit_word_counts(words_of_interest, time='t1')
+        word_count_dict_t2 = self._get_retrofit_word_counts(words_of_interest, time='t2')
+        self.cosine_similarity_df['Word']=words_of_interest
+        self.cosine_similarity_df['Cosine_similarity']=sims
+        self.cosine_similarity_df['Frequency_t1'] = self.cosine_similarity_df['Word'].apply(lambda x: word_count_dict_t1[x])
+        self.cosine_similarity_df['Frequency_t2'] = self.cosine_similarity_df['Word'].apply(lambda x: word_count_dict_t2[x])
+
+        self.cosine_similarity_df.loc[:,'FrequencyRatio'] = self.cosine_similarity_df['Frequency_t1']/self.cosine_similarity_df['Frequency_t2']
+        self.cosine_similarity_df.loc[:,'TotalFrequency'] = self.cosine_similarity_df['Frequency_t1'] + self.cosine_similarity_df['Frequency_t2']
+
+        '''
+        self.cosine_similarity_df_sorted = self.cosine_similarity_df.sort_values(by='Cosine_similarity', ascending=True)
+        self.cosine_similarity_df_sorted'''
+
+        #Assigning change and no-change labels as initially expected
+        self.cosine_similarity_df['semanticDifference']=['default' for i in range(self.cosine_similarity_df.shape[0])]
+        self.cosine_similarity_df.loc[self.cosine_similarity_df['Word'].isin(change), 'semanticDifference'] = 'change' 
+        self.cosine_similarity_df.loc[self.cosine_similarity_df['Word'].isin(no_change), 'semanticDifference'] = 'no_change'
+
+        self.retrofit_dictkeyvector = dictKeyVector
+
+        # Save into word2vec format for nn comparison
+        for t in ['t1','t2']:
+            vocab = {k:v for k,v in dictKeyVector.items() if t in k}
+            self._save_word2vec_format(
+                fname = os.path.join(model_output_dir, f'retrofit_vecs_{t}_{self.retrofit_factor}.bin'),
+                vocab = vocab,
+                vector_size = np.array(vocab[list(vocab.keys())[0]]).shape[0]
+            )
+
+        self.model1 = gensim.models.KeyedVectors.load_word2vec_format(os.path.join(model_output_dir, f'retrofit_vecs_t1_{self.retrofit_factor}.bin'), binary=True)
+        self.model2 = gensim.models.KeyedVectors.load_word2vec_format(os.path.join(model_output_dir, f'retrofit_vecs_t2_{self.retrofit_factor}.bin'), binary=True)
+
+        self.logger.info('Retrofit: Post Process complete')
 
     def logreg(self, model_output_dir, undersample = True):
         if self.model_type in ['retrofit', 'retro']:

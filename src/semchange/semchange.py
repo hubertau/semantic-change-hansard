@@ -130,6 +130,8 @@ class ParliamentDataHandler(object):
             self.data = pd.read_pickle(savepath)
 
     def split_by_date(self, date, split_range):
+
+        # conert relevant stuff into datetime objects
         date = datetime.datetime.strptime(date, '%Y-%m-%d')
         if split_range is not None:
             leftbound  = date - relativedelta(years=split_range)
@@ -138,12 +140,17 @@ class ParliamentDataHandler(object):
             leftbound  = date - relativedelta(years=100)
             rightbound = date + relativedelta(years=100)
 
+        # convert date column to datetime before we do any more processing
         self.data['date'] = pd.to_datetime(self.data['date'])
 
+        # make sure we have a column... lol
         assert 'date' in self.data.columns
+
+        # do the splitting
         self.data.loc[(self.data['date'] > leftbound) & (self.data['date'] <= date), 'time'] = 't1'
         self.data.loc[(self.data['date'] > date) & (self.data['date'] <= 
         rightbound), 'time'] = 't2'
+
         # also restrict range to the years we want.
         if split_range is not None:
             to_discard = self.data['time'].isnull()
@@ -151,18 +158,35 @@ class ParliamentDataHandler(object):
             self.data = self.data[~to_discard]
             self.data = self.data.reset_index()
             assert len(self.data['time'].unique()) == 2
+
+        # now hash the debate ids for retrofit if we are doing that
         self.data.loc[:,'debate_id'] = self.data['agenda'].map(hash)
         self.data.loc[:,'debate'] = self.data['agenda']
+
+        # ensure data integrity of speaker column
         self.data = self.data[self.data['speaker'].apply(lambda x: isinstance(x,str))]
+
+        # ensure data integrity of party column
         self.data = self.data[self.data['party'].apply(lambda x: isinstance(x,str))]
+
+        # let's just get rid of spaces so there's no weird stuff
         self.data.loc[:,'speaker'] = self.data['speaker'].apply(lambda x: x.replace(' ', '_'))
+
+        # same for parties
         self.data.loc[:,'party'] = self.data['party'].apply(lambda x: x.replace(' ', '_'))
+
+        # generate set of tokens for each row for O(1) comparison later for checking membership
         self.data.loc[:, 'token_set'] = self.data['tokenized'].apply(set)
 
+        # split the data into two parts for ease of modelling in the whole model, say
         self.data_t1 = self.data[(self.data['date'] > leftbound) & (self.data['date'] <= date)]
         self.data_t2 = self.data[(self.data['date'] > date) & (self.data['date'] < rightbound)]
+
+        # verbose debug output
         self.logger.debug(f'Data t1 len: {len(self.data_t1)}')
         self.logger.debug(f'Data t2 len: {len(self.data_t2)}')
+
+        # for any referencing later
         self.split_complete = True
 
     def preprocess(self, change = None, no_change = None, model = None, model_output_dir = None, retrofit_outdir=None, overwrite=None):
@@ -471,6 +495,7 @@ class ParliamentDataHandler(object):
                         # Skip if below minimum size
                         if len(model.wv.index_to_key) < min_vocab_size:
                             skipped += 1
+                            self.logger.info(f'MODELLING - SKIPPED {row.df_name} due to insufficient vocab size. Vocab size: {len(model.wv.index_to_key)}')
                             continue
                         if not new:
                             new = True
@@ -545,6 +570,7 @@ class ParliamentDataHandler(object):
                     # Skip if below minimum size
                     if len(model.wv.index_to_key) < min_vocab_size:
                         skipped += 1
+                        self.logger.info(f'MODELLING - SKIPPED {row.df_name} due to insufficient vocab size. Vocab size: {len(model.wv.index_to_key)}')
                         continue
 
                     if not new:
@@ -956,7 +982,7 @@ class ParliamentDataHandler(object):
         length = len(self.data)
         for row in self.data.itertuples():
             if row.Index % 10000 == 0:
-                self.logger.info(f'{row.Index} rows processed = {100*row.Index/length:.2f}')
+                self.logger.info(f'{row.Index} rows processed = {100*row.Index/length:.2f}%')
             overlap = set(words).intersection(row.token_set)
             if len(overlap) == 0:
                 # can be no overlap in terms of interest, if so, continue.
@@ -1128,7 +1154,11 @@ class ParliamentDataHandler(object):
             syn_df['time'] = syn_df['modelKey'].apply(lambda x: x.split('df_')[1].split('_')[0])
             syn_df['speaker'] = syn_df['modelKey'].apply(lambda x: x.split('df_')[1].split('_')[1])
             syn_df['speaker'] = syn_df['speaker'].apply(lambda x: x.replace(' ','_'))
-            syn_df['party'] = syn_df['speaker'].apply(lambda x: self.retrofit_prep_df[self.retrofit_prep_df['speaker'] == x]['party'].iat[0])
+            # syn_df['party'] = syn_df['speaker'].apply(lambda x: self.retrofit_prep_df[self.retrofit_prep_df['speaker'] == x]['party'].iat[0])
+            syn_df['party'] = syn_df['speaker'].apply(lambda x: self.data[self.data['speaker'] == x]['party'].iat[0])
+
+
+
             # syn_df['debate'] = syn_df.apply(lambda x: self.retrofit_prep_df[(self.retrofit_prep_df['speaker'] == x.speaker) & (self.retrofit_prep_df['df_name'].isin(x.time))]['debate'].iat[0], axis=1)
             # syn_df['debate_id'] = syn_df.apply(lambda x: self.retrofit_prep_df[(self.retrofit_prep_df['speaker'] == x.speaker) & (self.retrofit_prep_df['df_name'].isin(x.time))]['debate_id'].iat[0], axis=1)
 
@@ -1684,6 +1714,7 @@ def main(
     logging.getLogger('gensim.utils').propagate = False
     logging.getLogger('gensim.models.word2vec').setLevel(logging.DEBUG)
     logging.getLogger('gensim.models.word2vec').propagate = False
+    logging.getLogger('smart_open.smart_open_lib').propagate = False
 
     # Log all the parameters
     logger.info(f'PARAMS - file - {file}')

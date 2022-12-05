@@ -147,6 +147,7 @@ class ParliamentDataHandler(object):
         self.data.loc[:,'debate'] = self.data['agenda']
         self.data = self.data[self.data['speaker'].apply(lambda x: isinstance(x,str))]
         self.data.loc[:,'speaker'] = self.data['speaker'].apply(lambda x: x.replace(' ', '_'))
+        self.data.loc[:, 'token_set'] = self.data['tokenized'].apply(set)
 
         self.data_t1 = self.data[(self.data['datetime'] > leftbound) & (self.data['datetime'] <= date)]
         self.data_t2 = self.data[(self.data['datetime'] > date) & (self.data['datetime'] < rightbound)]
@@ -481,7 +482,7 @@ class ParliamentDataHandler(object):
             self.retrofit_prep_df = pd.read_json(retrofit_prep_savepath, orient='split')
             self.logger.info(f'Retrofit prep loaded in from {retrofit_prep_savepath}, key = {self.parliament_name}')
 
-    def retrofit_create_synonyms(self, word):
+    def retrofit_create_synonyms(self, words):
         """Function to create the synonyms from an input dataframe (retrofit_prep)
 
         Args:
@@ -493,10 +494,9 @@ class ParliamentDataHandler(object):
             _type_: _description_
         """
 
-        self.logger.info(f'RETROFIT - CREATE SYNONYMS - GENERATE IDENTIFIERS FOR WORD: {word}')
+        self.logger.info(f'RETROFIT - CREATE SYNONYMS FOR WORDS OF INTEREST')
 
         potential_factors = ['party', 'time', 'debate']
-
 
         # self.logger.info(f"RETROFIT FACTOR: {self.retrofit_factor}")
         #TODO: ENSURE DATA SLICING IS CORRECT
@@ -506,10 +506,10 @@ class ParliamentDataHandler(object):
         parties = [i.replace(' ','_') for i in parties]
 
         # collect debate id list
-        debate_id_set = set()
-        for debate_id_list in self.data['debate_id']:
-            for debate_id in debate_id_list:
-                debate_id_set.add(str(debate_id))
+        # debate_id_set = set()
+        # for debate_id_list in self.data['debate_id']:
+            # debate_id_set.add(str(debate_id))
+        debate_id_set = set(self.data['debate_id'].unique())
         assert len(debate_id_set) > 0
         debate_id_list = list(debate_id_set)
 
@@ -521,7 +521,7 @@ class ParliamentDataHandler(object):
             'time': times,
             'debate': debate_id_list,
         }
-        identifier_factors = []
+        identifier_factors = [list(set(words))]
         for potential_factor in potential_factors:
             if potential_factor in self.retrofit_factor:
                 identifier_factors.append(identifier_dict[potential_factor])
@@ -529,104 +529,109 @@ class ParliamentDataHandler(object):
 
         identifiers = list(product(*identifier_factors))
         # self.logger.debug(f'Product identifiers: {identifiers[:10]}')
-        identifiers = [syn_identifier(word, *i) for i in identifiers]
+        identifiers = [syn_identifier(i) for i in identifiers]
         # self.logger.debug(f'{identifiers[0]}')
         # self.logger.debug(f"Exapmle syn_identifier: {identifiers[0].stringify()}")
         # self.logger.info('RETROFIT - CREATE SYNONYMS - IDENTIFIERS GENERATED')
 
         # initiate dictionary to save output for
-        dictOfSynonyms={}
+        # dictOfSynonyms={}
 
-        # Iterate parties & create synonyms where more than one record for a party
-        temp = True
-        # self.logger.info(f'{len(identifiers)} to scan.')
-        count = 0
-        for ind, identifier in enumerate(identifiers):
-            # self.logger.debug(f'Running identifier {identifier.stringify()}')
+        # # Iterate parties & create synonyms where more than one record for a party
+        # temp = True
+        # # self.logger.info(f'{len(identifiers)} to scan.')
+        # count = 0
+        # for ind, identifier in enumerate(identifiers):
+        #     # self.logger.debug(f'Running identifier {identifier.stringify()}')
 
-            # if ind % 100000 == 0:
-                # self.logger.info(f'Processed {ind} of {len(identifiers)} = {100*ind/len(identifiers):.2f}%')
+        #     # if ind % 100000 == 0:
+        #         # self.logger.info(f'Processed {ind} of {len(identifiers)} = {100*ind/len(identifiers):.2f}%')
 
-            selected_df = self.data.copy()
-            for potential_factor in potential_factors:
-                if potential_factor in self.retrofit_factor: 
-                    if potential_factor == 'party':
-                        selected_df = selected_df[selected_df['party']==identifier.party]
-                        # self.logger.debug(f'Party factor detected for selected df')
-                    if potential_factor == 'time':
-                        selected_df = selected_df[selected_df['time']==identifier.time]
-                        # self.logger.debug(f'Time factor detected for selected df')
-                    if potential_factor == 'debate':
-                        # selected_df = selected_df[selected_df['debate_id'].apply(lambda x: int(identifier.debate) in x)]
-                        selected_df = selected_df[selected_df['debate_id'] == int(identifier.debate)]
-            temp=False
+        #     selected_df = self.data.copy()
+        #     for potential_factor in potential_factors:
+        #         if potential_factor in self.retrofit_factor: 
+        #             if potential_factor == 'party':
+        #                 selected_df = selected_df[selected_df['party']==identifier.party]
+        #                 # self.logger.debug(f'Party factor detected for selected df')
+        #             if potential_factor == 'time':
+        #                 selected_df = selected_df[selected_df['time']==identifier.time]
+        #                 # self.logger.debug(f'Time factor detected for selected df')
+        #             if potential_factor == 'debate':
+        #                 # selected_df = selected_df[selected_df['debate_id'].apply(lambda x: int(identifier.debate) in x)]
+        #                 selected_df = selected_df[selected_df['debate_id'] == int(identifier.debate)]
+        #     temp=False
 
-            if 'debate' not in self.retrofit_factor:
-                # if no debate, there will be lots of duplicates
-                for potential_factor in  potential_factors:
-                    selected_df = selected_df.groupby(potential_factor).first()
-            identifier_synonyms=[]
+        #     if 'debate' not in self.retrofit_factor:
+        #         # if no debate, there will be lots of duplicates
+        #         for potential_factor in  potential_factors:
+        #             selected_df = selected_df.groupby(potential_factor).first()
+        #     identifier_synonyms=[]
 
-            # speaker_ids=list(selected_df['speaker'].unique())
+        #     # speaker_ids=list(selected_df['speaker'].unique())
 
-            # temp = True
-            #TODO: CHECK WHETHER WORD OCCURS IN DEBATE!!
-            for row in selected_df.itertuples():
-                if 'debate' in self.retrofit_factor:
-                    tokens = set(row.tokenized)
-                    if word in tokens:
-                        syn = synonym_item(
-                            word = word,
-                            time = identifier.time,
-                            speaker = row.speaker,
-                            party  = row.party
-                        )
-                        identifier_synonyms.append(syn)
-                        count += 1
-                else:
-                    syn = synonym_item(
+        #     # temp = True
+        #     #TODO: CHECK WHETHER WORD OCCURS IN DEBATE!!
+        #     for row in selected_df.itertuples():
+        #         if 'debate' in self.retrofit_factor:
+        #             tokens = set(row.tokenized)
+        #             if word in tokens:
+        #                 syn = synonym_item(
+        #                     word = word,
+        #                     time = identifier.time,
+        #                     speaker = row.speaker,
+        #                     party  = row.party
+        #                 )
+        #                 identifier_synonyms.append(syn)
+        #                 count += 1
+        #         else:
+        #             syn = synonym_item(
+        #                 word = word,
+        #                 time = identifier.time,
+        #                 speaker = row.speaker,
+        #                 party  = row.party
+        #             )
+        #             identifier_synonyms.append(syn)
+        #             count += 1
+
+        #     dictOfSynonyms[identifier.stringify()]=identifier_synonyms
+        # self.logger.info(f'{count} string saved')
+
+        # 2022-12-05 New Logic: Can we iterate over the data table only once?
+        # Save output to a dictionary that has identifiers as the keys, and only add in when they match the identifiers.
+        stringified_identifiers = [i.stringify() for i in identifiers]
+        output_dict = {k: [] for k in stringified_identifiers}
+        for row in self.data.itertuples():
+            overlap = set(words).intersection(row.token_set)
+            if len(overlap) == 0:
+                # can be no overlap in terms of interest, if so, continue.
+                continue
+            else:
+                # loop over words that are contained in this debate
+                for word in overlap:
+                    t = None
+                    d = None
+                    if 'time' in self.retrofit_factor:
+                        t = row.time
+                    if 'debate' in self.retrofit_factor:
+                        d = row.debate_id
+                    # create identifier and match against output_dit
+                    temp_identifier = syn_identifier(
                         word = word,
-                        time = identifier.time,
-                        speaker = row.speaker,
-                        party  = row.party
-                    )
-                    identifier_synonyms.append(syn)
-                    count += 1
+                        party = row.party,
+                        time = t,
+                        debate = d
+                    ).stringify()
+                    if temp_identifier in output_dict:
+                        syn_item = synonym_item(
+                            word = word,
+                            time = t,
+                            speaker = row.speaker,
+                            party = row.party,
+                        )
+                        output_dict[temp_identifier].append(syn_item)
 
-            dictOfSynonyms[identifier.stringify()]=identifier_synonyms
-        self.logger.info(f'{count} string saved')
+        return output_dict
 
-        # 2022-12-01 Make synonym lists rather than synonym pairs. Now by construction words will have lists split by factors.
-
-        #Making pairs
-        # synonyms=[]
-
-        # # iterate over parties. k = parties
-        # for k in dictOfSynonyms.keys():
-        #     word_mps_party = dictOfSynonyms[k]
-        #     # Proceed to make pairs only if more than one record per party
-        #     if(len(word_mps_party)>1):
-        #         for i, rec in enumerate(word_mps_party):
-        #             for j in range(i+1,len(word_mps_party)):
-        #                 # --------------- IF MAKING PAIRS ON PARTY-TIME BASIS, THIS CODE IS THE DIFFERENTIATING BIT---
-        #                 if factor == 'party-time':
-        #                     # 'rec' here has structure {word}-{times[ind]}-{name}-{p}
-        #                     # rec.split('-')[1] is time
-        #                     if(rec.split('-')[1]==word_mps_party[j].split('-')[1]):
-        #                         syntup = (rec,word_mps_party[j])
-        #                         synonyms.append(syntup)
-        #                 elif factor == 'party-debate-time':
-        #                     if (rec.split('-')[1]==word_mps_party[j].split('-')[1]) and (rec.split('-')[4] == word_mps_party[j].split('-')[4]):
-        #                         syntup = (rec, word_mps_party[j])
-        #                         synonyms.append(syntup)
-        #                 elif factor == 'party-debate':
-        #                     if rec.split('-')[4] == word_mps_party[j].split('-')[4]:
-        #                         syntup = (rec, word_mps_party[j])
-        #                         synonyms.append(syntup)
-        #                 elif factor == 'party':
-        #                     syntup = (rec,word_mps_party[j])
-        #                     synonyms.append(syntup)
-        return dictOfSynonyms
 
     def retrofit_main_create_synonyms(self, factor = None, overwrite=False):
 
@@ -649,11 +654,12 @@ class ParliamentDataHandler(object):
                 # print(len(synonyms)) #Verify length of synonyms
                 # allSynonyms.append(synonymsPerWord)
 
-            with ProcessPoolExecutor(max_workers=10) as executor:
-                results = executor.map(self.retrofit_create_synonyms, self.words_of_interest)
+            # with ProcessPoolExecutor(max_workers=10) as executor:
+                # results = executor.map(self.retrofit_create_synonyms, self.words_of_interest)
+            total_dict = self.retrofit_create_synonyms(self.words_of_interest)
 
             # 2022-12-01: Now each synonymsPerWord is a dictionary
-            total_dict = {k:v for i in results for k,v in i.items()}
+            # total_dict = {k:v for i in results for k,v in i.items()}
 
             #Here it is 84 , which is sum of combinations made 
             #for the three parties (13,3,3)=> no. of combinations is (78,3,3), 78+3+3= 84, hence verified. 

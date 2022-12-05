@@ -944,7 +944,7 @@ class ParliamentDataHandler(object):
         output_dict = defaultdict(list)
         length = len(self.data)
         for row in self.data.itertuples():
-            if row.index % 10000 == 0:
+            if row.Index % 10000 == 0:
                 self.logger.info(f'{row.index} rows processed = {100*row.index/length:.2f}')
             overlap = set(words).intersection(row.token_set)
             if len(overlap) == 0:

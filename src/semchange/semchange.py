@@ -975,6 +975,8 @@ class ParliamentDataHandler(object):
                         )
                         output_dict[temp_identifier.stringify()].append(syn_item)
 
+        self.logger.info(f'Number of synonym keys: {len(output_dict)}')
+
         # self.logger.info('Clean output to remove empty lists')
 
 

@@ -138,10 +138,18 @@ class ParliamentDataHandler(object):
             leftbound  = date - relativedelta(years=100)
             rightbound = date + relativedelta(years=100)
 
-        self.data['datetime'] = pd.to_datetime(self.data['date'])
+        self.data['date'] = pd.to_datetime(self.data['date'])
 
-        self.data.loc[(self.data['datetime'] > leftbound) & (self.data['datetime'] <= date),'time'] = 't1'
-        self.data.loc[(self.data['datetime'] > date) & (self.data['datetime'] < rightbound), 'time'] = 't2'
+        assert 'date' in self.data.columns
+        self.data.loc[(self.data['date'] > leftbound) & (self.data['date'] <= date), 'time'] = 't1'
+        self.data.loc[(self.data['date'] > date) & (self.data['date'] <= 
+        rightbound), 'time'] = 't2'
+        # also restrict range to the years we want.
+        if split_range is not None:
+            to_discard = self.data['time'].isnull()
+            self.logger.debug(f'Row to discard due to time split: {len(to_discard)} out of {len(self.data)} = {100*len(to_discard)/len(self.data):.2f}')
+            self.data = self.data[~to_discard]
+            assert len(data['time'].unique()) == 2
         self.data.loc[:,'debate_id'] = self.data['agenda'].map(hash)
         self.data.loc[:,'debate'] = self.data['agenda']
         self.data = self.data[self.data['speaker'].apply(lambda x: isinstance(x,str))]
@@ -150,8 +158,10 @@ class ParliamentDataHandler(object):
         self.data.loc[:,'party'] = self.data['party'].apply(lambda x: x.replace(' ', '_'))
         self.data.loc[:, 'token_set'] = self.data['tokenized'].apply(set)
 
-        self.data_t1 = self.data[(self.data['datetime'] > leftbound) & (self.data['datetime'] <= date)]
-        self.data_t2 = self.data[(self.data['datetime'] > date) & (self.data['datetime'] < rightbound)]
+        self.data_t1 = self.data[(self.data['date'] > leftbound) & (self.data['date'] <= date)]
+        self.data_t2 = self.data[(self.data['date'] > date) & (self.data['date'] < rightbound)]
+        self.logger.debug(f'Data t1 len: {len(self.data_t1)}')
+        self.logger.debug(f'Data t2 len: {len(self.data_t2)}')
         self.split_complete = True
 
     def preprocess(self, change = None, no_change = None, model = None, model_output_dir = None, retrofit_outdir=None, overwrite=None):
@@ -1705,6 +1715,7 @@ def main(
     date_to_split = split_date
     logger.info(f'SPLITTING BY DATE {date_to_split}')
     handler.split_by_date(date_to_split, split_range)
+    logger.info('SPLITTING COMPLETE.')
 
     # unified
     handler.preprocess(

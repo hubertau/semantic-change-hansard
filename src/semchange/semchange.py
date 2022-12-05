@@ -591,7 +591,7 @@ class ParliamentDataHandler(object):
 
                     # dictOfModels[dframe] = model
                     #model.save(os.path.join(models_folder, modelName))
-                else:
+                elif os.path.isfile(savepath):
                     self.retrofit_model_paths.append(savepath)
                     count += 1
 
@@ -1159,8 +1159,7 @@ class ParliamentDataHandler(object):
             syn_df['party'] = syn_df['speaker'].apply(lambda x: self.data[self.data['speaker'] == x]['party'].iat[0])
             # syn_df['party'] = 
 
-
-
+            syn_df = syn_df[syn_df['full_model_path'].apply(lambda x: os.path.isfile(x))]
 
             # syn_df['debate'] = syn_df.apply(lambda x: self.retrofit_prep_df[(self.retrofit_prep_df['speaker'] == x.speaker) & (self.retrofit_prep_df['df_name'].isin(x.time))]['debate'].iat[0], axis=1)
             # syn_df['debate_id'] = syn_df.apply(lambda x: self.retrofit_prep_df[(self.retrofit_prep_df['speaker'] == x.speaker) & (self.retrofit_prep_df['df_name'].isin(x.time))]['debate_id'].iat[0], axis=1)

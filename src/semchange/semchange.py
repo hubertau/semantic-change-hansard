@@ -342,8 +342,8 @@ class ParliamentDataHandler(object):
                 'debate_id'
                 ]
             )
-        self.data_t1['time'] = 't1'
-        self.data_t2['time'] = 't2'
+        # self.data_t1['time'] = 't1'
+        # self.data_t2['time'] = 't2'
         split_t1 = list(self.data_t1[by].unique())
         split_t2 = list(self.data_t2[by].unique())
         total_split = set(split_t1+split_t2)

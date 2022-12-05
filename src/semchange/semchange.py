@@ -149,6 +149,7 @@ class ParliamentDataHandler(object):
             to_discard = self.data['time'].isnull()
             self.logger.debug(f'Row to discard due to time split: {sum(to_discard)} out of {len(self.data)} = {100*sum(to_discard)/len(self.data):.2f}')
             self.data = self.data[~to_discard]
+            self.data = self.data.reset_index()
             assert len(self.data['time'].unique()) == 2
         self.data.loc[:,'debate_id'] = self.data['agenda'].map(hash)
         self.data.loc[:,'debate'] = self.data['agenda']
@@ -976,14 +977,14 @@ class ParliamentDataHandler(object):
                         time = t,
                         debate = d
                     ).stringify()
-                    if temp_identifier in output_dict:
-                        syn_item = synonym_item(
-                            word = word,
-                            time = t,
-                            speaker = row.speaker,
-                            party = row.party,
-                        )
-                        output_dict[temp_identifier.stringify()].append(syn_item)
+                    # if temp_identifier in output_dict:
+                    syn_item = synonym_item(
+                        word = word,
+                        time = t,
+                        speaker = row.speaker,
+                        party = row.party,
+                    )
+                    output_dict[temp_identifier.stringify()].append(syn_item)
 
         self.logger.info(f'Number of synonym keys: {len(output_dict)}')
 

@@ -984,7 +984,7 @@ class ParliamentDataHandler(object):
                         speaker = row.speaker,
                         party = row.party,
                     )
-                    output_dict[temp_identifier.stringify()].append(syn_item)
+                    output_dict[temp_identifier].append(syn_item)
 
         self.logger.info(f'Number of synonym keys: {len(output_dict)}')
 

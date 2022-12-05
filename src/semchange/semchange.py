@@ -529,8 +529,9 @@ class ParliamentDataHandler(object):
                 identifier_factors.append(identifier_dict[potential_factor])
                 self.logger.debug(f'added {potential_factor}')
 
+        self.logger.debug('Generate identifiers')
         raw_identifiers = list(product(*identifier_factors))
-        self.logger.debug(f'Product identifiers: {identifiers[:10]}')
+        self.logger.debug(f'Product identifiers: {raw_identifiers[:10]}')
         # identifiers = [syn_identifier(i) for i in raw_identifiers]
         identifiers = []
         for i in raw_identifiers:

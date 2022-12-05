@@ -1040,7 +1040,7 @@ class ParliamentDataHandler(object):
                 pickle.dump(total_dict, f)
 
             with open(self.synTextPath,'w') as f:
-                for _, v in total_dict:
+                for _, v in total_dict.items():
                     for syn_str in v:
                         f.write(syn_str.stringify())
                         f.write(' ')
@@ -1141,20 +1141,6 @@ class ParliamentDataHandler(object):
             syn_df = syn_df[syn_df['speaker'].isin(speakers_in_syn_list)]
             self.logger.info(f'RETROFIT - DONE CHECKING WHICH SPEAKERS TO KEEP WITH GENEREATED SYNONYMS.')
 
-
-            # for row in syn_df.itertuples():
-            #     # To ensure we don't match the likes of MP id 16 with MP id 216
-            #     mpToSearch = row.speaker.replace(' ','_')
-            #     # mpName='dummy'
-            #     for syn in total_syn_list:
-            #         if mpToSearch == syn.speaker: 
-            #             break
-            #     mpNames.append('default') if not mpName else mpNames.append(mpName)
-            # syn_df['mpNamePartyInfo'] = mpNames
-            # if first:
-            #     self.logger.info(f'example mpNamePartyInfo: {mpName}')
-            #     first=False
-
             # retrieve required vector size from a file
             temp_model = gensim.models.Word2Vec.load(self.retrofit_model_paths[0])
             temp_vec = temp_model.wv[temp_model.wv.index_to_key[0]]
@@ -1195,6 +1181,17 @@ class ParliamentDataHandler(object):
 
                 with open(self.vectorIndexFileName, 'wb') as f:
                     pickle.dump(index_to_key, f)
+
+            # sanity check: all the keys in the synonym list should be in the retrieved vectors.
+            self.logger.info('Performing sanity check')
+            set_index_to_key = set(index_to_key)
+            all_stringified = [i.stringify() for i in self.total_syn_list]
+            if all_stringified.issubset(set_index_to_key):
+                self.logger.info('Sanity check PASSED! :)')
+            else:
+                syn_items_with_no_key = all_stringified - all_stringified.intersection(set_index_to_key)
+                self.logger.warning(f'{len(syn_items_with_no_key)}')
+                self.logger.warning(syn_items_with_no_key)
 
             return True
         else:

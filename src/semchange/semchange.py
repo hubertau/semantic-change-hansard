@@ -146,7 +146,9 @@ class ParliamentDataHandler(object):
         self.data.loc[:,'debate_id'] = self.data['agenda'].map(hash)
         self.data.loc[:,'debate'] = self.data['agenda']
         self.data = self.data[self.data['speaker'].apply(lambda x: isinstance(x,str))]
+        self.data = self.data[self.data['party'].apply(lambda x: isinstance(x,str))]
         self.data.loc[:,'speaker'] = self.data['speaker'].apply(lambda x: x.replace(' ', '_'))
+        self.data.loc[:,'party'] = self.data['party'].apply(lambda x: x.replace(' ', '_'))
         self.data.loc[:, 'token_set'] = self.data['tokenized'].apply(set)
 
         self.data_t1 = self.data[(self.data['datetime'] > leftbound) & (self.data['datetime'] <= date)]
@@ -503,7 +505,7 @@ class ParliamentDataHandler(object):
         parties = list(self.data.party.unique())
         parties = [i for i in parties if isinstance(i, str)]
         # To fix party names like 'Scottish National Party by inserting hyphens between
-        parties = [i.replace(' ','_') for i in parties]
+        # parties = [i.replace(' ','_') for i in parties]
 
         # collect debate id list
         # debate_id_set = set()
@@ -527,9 +529,15 @@ class ParliamentDataHandler(object):
                 identifier_factors.append(identifier_dict[potential_factor])
                 self.logger.debug(f'added {potential_factor}')
 
-        identifiers = list(product(*identifier_factors))
-        # self.logger.debug(f'Product identifiers: {identifiers[:10]}')
-        identifiers = [syn_identifier(i) for i in identifiers]
+        raw_identifiers = list(product(*identifier_factors))
+        self.logger.debug(f'Product identifiers: {identifiers[:10]}')
+        # identifiers = [syn_identifier(i) for i in raw_identifiers]
+        identifiers = []
+        for i in raw_identifiers:
+            try:
+                identifiers.append(syn_identifier(i))
+            except:
+                print(i)
         # self.logger.debug(f'{identifiers[0]}')
         # self.logger.debug(f"Exapmle syn_identifier: {identifiers[0].stringify()}")
         # self.logger.info('RETROFIT - CREATE SYNONYMS - IDENTIFIERS GENERATED')
@@ -600,7 +608,10 @@ class ParliamentDataHandler(object):
         # Save output to a dictionary that has identifiers as the keys, and only add in when they match the identifiers.
         stringified_identifiers = [i.stringify() for i in identifiers]
         output_dict = {k: [] for k in stringified_identifiers}
+        length = len(self.data)
         for row in self.data.itertuples():
+            if row.index % 10000:
+                self.logger.info(f'{row.index} rows processed = {100*row.index/length:.2f}')
             overlap = set(words).intersection(row.token_set)
             if len(overlap) == 0:
                 # can be no overlap in terms of interest, if so, continue.

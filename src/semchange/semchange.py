@@ -613,7 +613,7 @@ class ParliamentDataHandler(object):
                     if 'time' in self.retrofit_factor:
                         t = row.time
                     if 'debate' in self.retrofit_factor:
-                        d = row.debate_id
+                        d = str(row.debate_id)
                     # create identifier and match against output_dit
                     temp_identifier = syn_identifier(
                         word = word,

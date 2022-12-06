@@ -1171,6 +1171,7 @@ class ParliamentDataHandler(object):
             # iterate over each speaker model in syn_df. Then search the unique synonym list to see if they have words in there. If so, save the associated party info.
             speakers_in_syn_list = set([i.speaker for i in self.total_syn_list])
             syn_df = syn_df[syn_df['speaker'].isin(speakers_in_syn_list)]
+            syn_df = syn_df.reset_index()
             self.logger.info(f'RETROFIT - DONE CHECKING WHICH SPEAKERS TO KEEP WITH GENEREATED SYNONYMS.')
 
             # retrieve required vector size from a file

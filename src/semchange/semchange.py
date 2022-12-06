@@ -1216,15 +1216,15 @@ class ParliamentDataHandler(object):
                     pickle.dump(index_to_key, f)
 
             # sanity check: all the keys in the synonym list should be in the retrieved vectors.
-            self.logger.info('Performing sanity check')
-            set_index_to_key = set(index_to_key)
-            all_stringified = set([i.stringify() for i in self.total_syn_list])
-            if all_stringified.issubset(set_index_to_key):
-                self.logger.info('Sanity check PASSED! :)')
-            else:
-                syn_items_with_no_key = all_stringified - all_stringified.intersection(set_index_to_key)
-                self.logger.warning(f'{len(syn_items_with_no_key)}')
-                self.logger.warning(syn_items_with_no_key)
+            # self.logger.info('Performing sanity check')
+            # set_index_to_key = set(index_to_key)
+            # all_stringified = set([i.stringify() for i in self.total_syn_list])
+            # if all_stringified.issubset(set_index_to_key):
+            #     self.logger.info('Sanity check PASSED! :)')
+            # else:
+            #     syn_items_with_no_key = all_stringified - all_stringified.intersection(set_index_to_key)
+            #     self.logger.warning(f'{len(syn_items_with_no_key)}')
+            #     self.logger.warning(syn_items_with_no_key)
 
             return True
         else:
@@ -1269,23 +1269,25 @@ class ParliamentDataHandler(object):
     def retrofit_post_process(self, change, no_change, model_output_dir):
         self.logger.info('Retrofit: Post Processing')
 
+        # retrofit outfile is of structure: synKey vector <- for each line
         with open(self.retrofit_outfile) as f:
+            vecs = f.readlines()
+            vecs = [vec.replace('\n', '')for vec in vecs]
+            # vecs=[]
+            # vec=''
 
-            vecs=[]
-            vec=''
-
-            while True:
-                line = f.readline()
-                if not line:
-                    break
-                if(str(list(line)[0]).isalpha()):
-                    vec=vec.strip()
-                    if(vec!=''):
-                        vecs.append(vec)
-                    vec = line
-                else:
-                    vec+=line
-        vecs = [vec.replace('\n', '')for vec in vecs]
+            # while True:
+            #     line = f.readline()
+            #     if not line:
+            #         break
+            #     # check the line start is alphanumeric
+            #     if (str(list(line)[0]).isalpha()):
+            #         vec=vec.strip()
+            #         if(vec!=''):
+            #             vecs.append(vec)
+            #         vec = line
+            #     else:
+            #         vec += line
         self.logger.info(str(len(vecs))+' Retrofitted vectors obtained')
 
         self.logger.info('Now extracting and mapping to synonym key')
@@ -1305,17 +1307,21 @@ class ParliamentDataHandler(object):
             else:
                 vec =[float(v) for v in vec]
                 dictKeyVector[synKey]=np.array(vec)
-                npVec = np.array(dictKeyVector[synKey])
+                # npVec = np.array(dictKeyVector[synKey])
         self.logger.info(f'Count of vectors with fewer dimensions that we will not consider: {count}')
         dfRetrofitted = pd.DataFrame({'vectorKey':list(dictKeyVector.keys()), 'vectors':list(dictKeyVector.values())})
+        self.logger.debug(f'dfRetrofitted dimensions:{dfRetrofitted.shape}')
 
         # Filtering down words of interest as per those present in our vectors 
         # We're amending the computeAvgVec function accordingly
         # As it calculated based on processing from models, and here we're only taking vectors. Hence this check here too.
 
-        vectorKeys =list(dfRetrofitted['vectorKey'])
+        vectorKeys = list(dfRetrofitted['vectorKey'])
+        vectorKeys = [synonym_item.from_string(i) for i in vectorKeys]
         # Extracting words from vectors keys
-        words_of_interest = list(set([vk.split('-')[0] for vk in vectorKeys]))
+        words_from_syn_keys= list(set([key.word for key in vectorKeys]))
+        assert all(['$' not in i for i in words_from_syn_keys])
+        assert all(['-' not in i for i in words_from_syn_keys ])
         # print(words_of_interest, len(words_of_interest))
 
         self.cosine_similarity_df = pd.DataFrame(columns = (
@@ -1330,8 +1336,8 @@ class ParliamentDataHandler(object):
         # t2Keys = [t for t in list(dictKeyVector.keys()) if 't2' in t]
         sims= []
 
-        # Compute average of word in T1 and in T2 and store average vectors and cosine difference   
-        for word in words_of_interest:
+        # Compute average of word in T1 and in T2 and store average vectors and cosine difference
+        for word in words_from_syn_keys:
 
             #Provide a list of keys to average computation model for it to
             # #compute average vector amongst these models
@@ -1348,9 +1354,9 @@ class ParliamentDataHandler(object):
                 sims.append(cosSimilarity)
             else:
                 self.logger.info('Word not found')
-        word_count_dict_t1 = self._get_retrofit_word_counts(words_of_interest, time='t1')
-        word_count_dict_t2 = self._get_retrofit_word_counts(words_of_interest, time='t2')
-        self.cosine_similarity_df['Word']=words_of_interest
+        word_count_dict_t1 = self._get_retrofit_word_counts(words_from_syn_keys, time='t1')
+        word_count_dict_t2 = self._get_retrofit_word_counts(words_from_syn_keys, time='t2')
+        self.cosine_similarity_df['Word']=words_from_syn_keys
         self.cosine_similarity_df['Cosine_similarity']=sims
         self.cosine_similarity_df['Frequency_t1'] = self.cosine_similarity_df['Word'].apply(lambda x: word_count_dict_t1[x])
         self.cosine_similarity_df['Frequency_t2'] = self.cosine_similarity_df['Word'].apply(lambda x: word_count_dict_t2[x])
@@ -1474,7 +1480,7 @@ class ParliamentDataHandler(object):
 
         self.logger.info(scoresDf)
         if self.model_type == 'retrofit':
-            savepath = os.path.join(model_output_dir, 'logreg_{self.retorfit_factor}.csv')
+            savepath = os.path.join(model_output_dir, f'logreg_{self.retrofit_factor}.csv')
         else:
             savepath = os.path.join(model_output_dir, 'logreg.csv')
         scoresDf.to_csv(savepath)

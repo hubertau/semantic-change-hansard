@@ -1337,6 +1337,8 @@ class ParliamentDataHandler(object):
         sims= []
 
         # Compute average of word in T1 and in T2 and store average vectors and cosine difference
+        avg_vec_dict_t1 = {}
+        avg_vec_dict_t2 = {}
         for word in words_from_syn_keys:
 
             #Provide a list of keys to average computation model for it to
@@ -1347,6 +1349,8 @@ class ParliamentDataHandler(object):
             #Since here the key itself contains the word we're not simply sending T1 keys but sending word-wise key
             avgVecT1, _ = self.computeAvgVec(word, time = 't1', dictKeyVector = dictKeyVector)
             avgVecT2, _ = self.computeAvgVec(word, time = 't2', dictKeyVector = dictKeyVector)
+            avg_vec_dict_t1[word] = avgVecT1
+            avg_vec_dict_t2[word] = avgVecT2
 
             if(avgVecT1.shape == avgVecT2.shape):
                 # Cos similarity between averages
@@ -1376,8 +1380,8 @@ class ParliamentDataHandler(object):
         self.retrofit_dictkeyvector = dictKeyVector
 
         # Save into word2vec format for nn comparison
-        for t in ['t1','t2']:
-            vocab = {k:v for k,v in dictKeyVector.items() if t in k}
+        for t, vocab in [('t1',avg_vec_dict_t1), ('t2',avg_vec_dict_t2)]:
+            # vocab = {k:v for k,v in dictKeyVector.items() if t in k}
             self._save_word2vec_format(
                 fname = os.path.join(model_output_dir, f'retrofit_vecs_{t}_{self.retrofit_factor}.bin'),
                 vocab = vocab,

@@ -1218,7 +1218,7 @@ class ParliamentDataHandler(object):
             # sanity check: all the keys in the synonym list should be in the retrieved vectors.
             self.logger.info('Performing sanity check')
             set_index_to_key = set(index_to_key)
-            all_stringified = [i.stringify() for i in self.total_syn_list]
+            all_stringified = set([i.stringify() for i in self.total_syn_list])
             if all_stringified.issubset(set_index_to_key):
                 self.logger.info('Sanity check PASSED! :)')
             else:

@@ -1421,7 +1421,10 @@ class ParliamentDataHandler(object):
                 elif logreg_type == 3:
                     X = self.logreg_data[['Cosine_similarity', 'log_freq', 'FrequencyRatio']].values.reshape(-1,3)
                     # self.logger.info(self.logreg_data)
-                    self.logreg_data.to_csv(os.path.join(model_output_dir, 'logreg_df.csv'))
+                    if self.model_type =='retrofit':
+                        self.logreg_data.to_csv(os.path.join(model_output_dir, f'logreg_df_{self.retrofit_factor}.csv'))
+                    else:
+                        self.logreg_data.to_csv(os.path.join(model_output_dir, 'logreg_df.csv'))
                 y = self.logreg_data['semanticDifference']
 
                 if undersample:
@@ -1609,7 +1612,7 @@ class ParliamentDataHandler(object):
         }
         scoresDf = pd.DataFrame(scoresDict)
         if self.model_type == 'retrofit':
-            savepath = os.path.join(model_output_dir, 'nn_comparison_{self.retorfit_factor}.csv')
+            savepath = os.path.join(model_output_dir, f'nn_comparison_{self.retrofit_factor}.csv')
         else:
             savepath = os.path.join(model_output_dir, 'nn_comparison.csv')
         scoresDf.to_csv(savepath)
@@ -1623,7 +1626,7 @@ class ParliamentDataHandler(object):
                                     group2= self.words_of_interest['overlappingNeighbours'][self.words_of_interest['semanticDifference'] == 'no_change'], group2_name= "no_change")
         # print(summary_neighbours)
         if self.model_type == 'retrofit':
-            savepath = os.path.join(model_output_dir, 'nn_comparison_ttest_{self.retorfit_factor}.csv')
+            savepath = os.path.join(model_output_dir, 'nn_comparison_ttest_{self.retrofit_factor}.csv')
         else:
             savepath = os.path.join(model_output_dir, 'nn_comparison_ttest.csv')
         summary_neighbours.to_csv(savepath)

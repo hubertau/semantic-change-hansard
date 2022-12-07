@@ -509,9 +509,12 @@ class ParliamentDataHandler(object):
                     except Exception as e:
                         self.logger.error(e)
 
-            self.logger.info(f"MODELLING - SPEAKER - {skipped} out of {count}  models skipped due to vocab size")
-            self.logger.info(f"MODELLING - SPEAKER - {vocab_skipped} out of {count} models skipped due to insufficient overlap with vocab of interest")
-            self.logger.info(f"Total skipped: {vocab_skipped+skipped} out of {count} = {100*(vocab_skipped+skipped)/count:.2f}%")
+            if count > 0:
+                self.logger.info(f"MODELLING - SPEAKER - {skipped} out of {count}  models skipped due to vocab size")
+                self.logger.info(f"MODELLING - SPEAKER - {vocab_skipped} out of {count} models skipped due to insufficient overlap with vocab of interest")
+                self.logger.info(f"Total skipped: {vocab_skipped+skipped} out of {count} = {100*(vocab_skipped+skipped)/count:.2f}%")
+            else:
+                self.logger.info(f"No models made or skipped")
 
             if new:
                 self.logger.info('MODELLING - SPEAKER - New models detected. Loading back in and running alignment')

@@ -1471,7 +1471,7 @@ class ParliamentDataHandler(object):
         }
 
         scores_list = []
-        for logreg_type in range(max(list(logreg_data_dict.keys())+1)):
+        for logreg_type in range(max(list(logreg_data_dict.keys()))+1):
             try:
                 self.logger.info(f'RUNNING LOGREG. TYPE {logreg_type}')
                 # if logreg_type == 0:

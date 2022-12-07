@@ -762,6 +762,8 @@ class ParliamentDataHandler(object):
         self.logger.info("POSTPROCESS: BEGIN")
         if self.model_type == 'speaker':
             self.process_speaker(model_output_dir, overwrite=overwrite)
+        elif self.model_type == 'speaker_plus':
+            self.process_speaker_plus()
 
         self.woi()
 
@@ -771,7 +773,51 @@ class ParliamentDataHandler(object):
             self.retrofit_output_vec(model_output_dir = model_output_dir, overwrite=overwrite)
             self.retrofit_post_process(self.change, self.no_change, model_output_dir)
 
-    def process_speaker(self, model_output_dir, min_vocab_size=10000, overwrite=False):
+    def process_speaker_plus(self):
+
+        # 2022-12-06: Speaker plus: take cosine similarity of the same word in t1 and word in t2, with no averaging
+        if self.model_type == 'speaker':
+            self.valid_split_speeches_by_mp = []
+            self.dictOfModels = {
+                't1': [],
+                't2': []
+            }
+            total_words = set()
+            for model_savepath in self.speaker_saved_models:
+                model = gensim.models.Word2Vec.load(model_savepath)
+                # if len(model.wv.index_to_key) < min_vocab_size:
+                    # continue
+                if 't1' in model_savepath:
+                    self.dictOfModels['t1'].append(model)
+                else:
+                    self.dictOfModels['t2'].append(model)
+                # else:
+                self.valid_split_speeches_by_mp.append(model_savepath)
+                total_words.update(model.wv.index_to_key)
+            self.logger.info(f'POSTPROCESS - SPEAKER - Total words: {len(total_words)}')
+
+            word_sims = defaultdict(list)
+            for word in total_words:
+                for t1_model in self.dictOfModels['t1']:
+                    for t2_model in self.dictOfModels['t2']:
+                        if word in t1_model.wv.index_to_key and word in t2_model.wv.index_to_key:
+                            word_sims[word].append(self.cosine_similarity(t1_model.wv[word], t2_model.wv[word]))
+            word_vals = []
+            for word, values in word_sims.items():
+                word_vals.append({
+                    'Word': word,
+                    'mean_cossim': np.mean(values),
+                    'var_cossim': np.variance(values),
+                    'Frequency_t1': self.computeAvgVec(word, time='t1')[1],
+                    'Frequency_t2': self.computeAvgVec(word, time='t2')[1]
+                })
+            self.cosine_similarity_df = pd.DataFrame.from_records(word_vals)
+
+    def process_speaker(self,
+        model_output_dir,
+        min_vocab_size=10000,
+        overwrite=False
+    ):
         """Function to load in speaker models, filter by vocab size if necessary.
         """
         # collect keys of models that are over the threshold
@@ -1396,6 +1442,8 @@ class ParliamentDataHandler(object):
     def logreg(self, model_output_dir, undersample = True):
         if self.model_type in ['retrofit', 'retro']:
             self.logreg_data = self.cosine_similarity_df.copy()
+        elif self.model_type == 'speaker_plus':
+            self.logreg_data = self.cosine_similarity_df.copy()
         else:
             self.logreg_data = self.words_of_interest.copy()
 
@@ -1408,23 +1456,37 @@ class ParliamentDataHandler(object):
             self.logreg_data = self.logreg_data[self.logreg_data['TotalFrequency']>0]
         self.logreg_data['log_freq'] = np.log10(self.logreg_data['TotalFrequency'].astype(float))
 
+        logreg_data_dict = {
+            0: ['Cosine_similarity'],
+            1: ['Cosine_similarity', 'log_freq'],
+            2: ['Cosine_similarity', 'FrequencyRatio'],
+            3: ['Cosine_similarity', 'FrequencyRatio', 'log_freq'],
+            4: ['mean_cossim'],
+            5: ['mean_cossim', 'var_cossim'],
+            6: ['mean_cossim', 'log_freq'],
+            7: ['mean_cossim', 'var_cossim', 'FrequencyRatio'],
+            8: ['mean_cossim', 'FrequencyRatio', 'log_freq'],
+            9: ['mean_cossim', 'var_cossim', 'FrequencyRatio', 'log_freq']
+        }
+
         scores_list = []
-        for logreg_type in range(4):
+        for logreg_type in range(max(list(logreg_data_dict.keys())+1)):
             try:
                 self.logger.info(f'RUNNING LOGREG. TYPE {logreg_type}')
-                if logreg_type == 0:
-                    X = self.logreg_data['Cosine_similarity'].values.reshape(-1,1)
-                elif logreg_type == 1:
-                    X = self.logreg_data[['Cosine_similarity', 'log_freq']].values.reshape(-1,2)
-                elif logreg_type == 2:
-                    X = self.logreg_data[['Cosine_similarity','FrequencyRatio']].values.reshape(-1,2)
-                elif logreg_type == 3:
-                    X = self.logreg_data[['Cosine_similarity', 'log_freq', 'FrequencyRatio']].values.reshape(-1,3)
-                    # self.logger.info(self.logreg_data)
-                    if self.model_type =='retrofit':
-                        self.logreg_data.to_csv(os.path.join(model_output_dir, f'logreg_df_{self.retrofit_factor}.csv'))
-                    else:
-                        self.logreg_data.to_csv(os.path.join(model_output_dir, 'logreg_df.csv'))
+                # if logreg_type == 0:
+                #     X = self.logreg_data['Cosine_similarity'].values.reshape(-1,1)
+                # elif logreg_type == 1:
+                #     X = self.logreg_data[['Cosine_similarity', 'log_freq']].values.reshape(-1,2)
+                # elif logreg_type == 2:
+                #     X = self.logreg_data[['Cosine_similarity','FrequencyRatio']].values.reshape(-1,2)
+                # elif logreg_type == 3:
+                #     X = self.logreg_data[['Cosine_similarity', 'log_freq', 'FrequencyRatio']].values.reshape(-1,3)
+                #     # self.logger.info(self.logreg_data)
+                if self.model_type =='retrofit':
+                    self.logreg_data.to_csv(os.path.join(model_output_dir, f'logreg_df_{self.retrofit_factor}.csv'))
+                else:
+                    self.logreg_data.to_csv(os.path.join(model_output_dir, f'logreg_df.csv'))
+                X = self.logreg_data[logreg_data_dict[logreg_type]].values.reshape(-1, len(logreg_data_dict[logreg_type]))
                 y = self.logreg_data['semanticDifference']
 
                 if undersample:
@@ -1448,24 +1510,20 @@ class ParliamentDataHandler(object):
 
                 y_pred = logreg.predict(X_test)
 
-                scoring = {'accuracy' : make_scorer(accuracy_score), 
-                        'precision' : make_scorer(precision_score,pos_label='change'),
-                        'recall' : make_scorer(recall_score,pos_label='change'), 
-                        'f1_score' : make_scorer(f1_score,pos_label='change')}
+                scoring = {
+                    'accuracy' : make_scorer(accuracy_score), 
+                    'precision' : make_scorer(precision_score,pos_label='change'),
+                    'recall' : make_scorer(recall_score,pos_label='change'), 
+                    'f1_score' : make_scorer(f1_score,pos_label='change')
+                }
 
                 num_samples = min(np.sum(y=='change'),np.sum(y=='no_change'))
                 scores = cross_validate(kf, X, y, cv=min(10, num_samples), scoring=scoring,error_score='raise')
-                # accuracy, precision, recall, f1_score_res = [], [], [], []
 
                 self.logger.info(f'Accuracy: {scores["test_accuracy"].mean()}')
                 self.logger.info(f'Precision, {scores["test_precision"].mean()}')
                 self.logger.info(f'Recall, {scores["test_recall"].mean()}')
                 self.logger.info(f'F1 Score, {scores["test_f1_score"].mean()}')
-
-                # accuracy.append(scores['test_accuracy'].mean())
-                # precision.append(scores['test_precision'].mean())
-                # recall.append(scores['test_recall'].mean())
-                # f1_score_res.append(scores['test_f1_score'].mean())
 
                 scoresDict = {
                     'Model': f'{self.model_type}',
@@ -1489,7 +1547,7 @@ class ParliamentDataHandler(object):
         if self.model_type == 'retrofit':
             savepath = os.path.join(model_output_dir, f'logreg_{self.retrofit_factor}.csv')
         else:
-            savepath = os.path.join(model_output_dir, 'logreg.csv')
+            savepath = os.path.join(model_output_dir, f'logreg_{self.model_type}.csv')
         scoresDf.to_csv(savepath)
 
     def nn_comparison(self, model_output_dir, undersample = True):

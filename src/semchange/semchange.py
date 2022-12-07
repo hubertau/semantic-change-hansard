@@ -511,6 +511,7 @@ class ParliamentDataHandler(object):
                     except Exception as e:
                         self.logger.error(e)
 
+            self.logger.debug(self.speaker_saved_models)
             if count > 0:
                 self.logger.info(f"MODELLING - SPEAKER - {skipped} out of {count}  models skipped due to vocab size")
                 self.logger.info(f"MODELLING - SPEAKER - {vocab_skipped} out of {count} models skipped due to insufficient overlap with vocab of interest")
@@ -743,7 +744,7 @@ class ParliamentDataHandler(object):
 
             return self.words_of_interest, self.change_cossim, self.no_change_cossim
 
-        elif self.model_type == 'speaker':
+        elif self.model_type in ['speaker', 'speaker_plus']:
 
             self.words_of_interest = self.cosine_similarity_df[self.cosine_similarity_df['Word'].isin(self.change+self.no_change)].copy()
 

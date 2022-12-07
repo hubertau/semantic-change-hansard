@@ -199,8 +199,8 @@ class ParliamentDataHandler(object):
         if self.model_type in ['retrofit', 'retro']:
             self.logger.info(f'PREPROCESS: Running preprocessing for retrofit.')
             self.retrofit_prep(retrofit_outdir=retrofit_outdir, overwrite = overwrite)
-        elif self.model_type == 'speaker':
-            self.logger.info(f'PREPROCESS - SPEAKER - None required.')
+        elif self.model_type in ['speaker', 'speaker_plus']:
+            self.logger.info(f'PREPROCESS - {self.model_type.upper()} - None required.')
         elif self.model_type == 'whole':
             self.logger.info(f'PREPROCESS - WHOLE - None required.')
 
@@ -458,7 +458,7 @@ class ParliamentDataHandler(object):
                 self.model1.save(savepath_t1)
                 self.model2.save(savepath_t2)
 
-        if self.model_type == 'speaker':
+        if self.model_type in ['speaker', 'speaker_plus']:
 
             """
             With the speaker model, we train word embeddings for each MP and split into two time groups as well, t1 and t2.

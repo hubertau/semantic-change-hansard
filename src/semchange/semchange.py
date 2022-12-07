@@ -511,7 +511,7 @@ class ParliamentDataHandler(object):
                     except Exception as e:
                         self.logger.error(e)
 
-            self.logger.debug(self.speaker_saved_models)
+            # self.logger.debug(self.speaker_saved_models)
             if count > 0:
                 self.logger.info(f"MODELLING - SPEAKER - {skipped} out of {count}  models skipped due to vocab size")
                 self.logger.info(f"MODELLING - SPEAKER - {vocab_skipped} out of {count} models skipped due to insufficient overlap with vocab of interest")

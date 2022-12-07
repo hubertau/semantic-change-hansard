@@ -1445,8 +1445,6 @@ class ParliamentDataHandler(object):
     def logreg(self, model_output_dir, undersample = True):
         if self.model_type in ['retrofit', 'retro']:
             self.logreg_data = self.cosine_similarity_df.copy()
-        elif self.model_type == 'speaker_plus':
-            self.logreg_data = self.cosine_similarity_df.copy()
         else:
             self.logreg_data = self.words_of_interest.copy()
 

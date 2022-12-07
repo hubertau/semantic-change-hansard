@@ -812,7 +812,7 @@ class ParliamentDataHandler(object):
             word_vals.append({
                 'Word': word,
                 'mean_cossim': np.mean(values),
-                'var_cossim': np.variance(values),
+                'var_cossim': np.var(values),
                 'Frequency_t1': self.computeAvgVec(word, time='t1')[1],
                 'Frequency_t2': self.computeAvgVec(word, time='t2')[1]
             })

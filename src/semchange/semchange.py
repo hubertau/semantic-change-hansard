@@ -779,42 +779,41 @@ class ParliamentDataHandler(object):
     def process_speaker_plus(self):
 
         # 2022-12-06: Speaker plus: take cosine similarity of the same word in t1 and word in t2, with no averaging
-        if self.model_type == 'speaker':
-            self.valid_split_speeches_by_mp = []
-            self.dictOfModels = {
-                't1': [],
-                't2': []
-            }
-            total_words = set()
-            for model_savepath in self.speaker_saved_models:
-                model = gensim.models.Word2Vec.load(model_savepath)
-                # if len(model.wv.index_to_key) < min_vocab_size:
-                    # continue
-                if 't1' in model_savepath:
-                    self.dictOfModels['t1'].append(model)
-                else:
-                    self.dictOfModels['t2'].append(model)
-                # else:
-                self.valid_split_speeches_by_mp.append(model_savepath)
-                total_words.update(model.wv.index_to_key)
-            self.logger.info(f'POSTPROCESS - SPEAKER - Total words: {len(total_words)}')
+        self.valid_split_speeches_by_mp = []
+        self.dictOfModels = {
+            't1': [],
+            't2': []
+        }
+        total_words = set()
+        for model_savepath in self.speaker_saved_models:
+            model = gensim.models.Word2Vec.load(model_savepath)
+            # if len(model.wv.index_to_key) < min_vocab_size:
+                # continue
+            if 't1' in model_savepath:
+                self.dictOfModels['t1'].append(model)
+            else:
+                self.dictOfModels['t2'].append(model)
+            # else:
+            self.valid_split_speeches_by_mp.append(model_savepath)
+            total_words.update(model.wv.index_to_key)
+        self.logger.info(f'POSTPROCESS - SPEAKER - Total words: {len(total_words)}')
 
-            word_sims = defaultdict(list)
-            for word in total_words:
-                for t1_model in self.dictOfModels['t1']:
-                    for t2_model in self.dictOfModels['t2']:
-                        if word in t1_model.wv.index_to_key and word in t2_model.wv.index_to_key:
-                            word_sims[word].append(self.cosine_similarity(t1_model.wv[word], t2_model.wv[word]))
-            word_vals = []
-            for word, values in word_sims.items():
-                word_vals.append({
-                    'Word': word,
-                    'mean_cossim': np.mean(values),
-                    'var_cossim': np.variance(values),
-                    'Frequency_t1': self.computeAvgVec(word, time='t1')[1],
-                    'Frequency_t2': self.computeAvgVec(word, time='t2')[1]
-                })
-            self.cosine_similarity_df = pd.DataFrame.from_records(word_vals)
+        word_sims = defaultdict(list)
+        for word in total_words:
+            for t1_model in self.dictOfModels['t1']:
+                for t2_model in self.dictOfModels['t2']:
+                    if word in t1_model.wv.index_to_key and word in t2_model.wv.index_to_key:
+                        word_sims[word].append(self.cosine_similarity(t1_model.wv[word], t2_model.wv[word]))
+        word_vals = []
+        for word, values in word_sims.items():
+            word_vals.append({
+                'Word': word,
+                'mean_cossim': np.mean(values),
+                'var_cossim': np.variance(values),
+                'Frequency_t1': self.computeAvgVec(word, time='t1')[1],
+                'Frequency_t2': self.computeAvgVec(word, time='t2')[1]
+            })
+        self.cosine_similarity_df = pd.DataFrame.from_records(word_vals)
 
     def process_speaker(self,
         model_output_dir,

@@ -192,7 +192,7 @@ class ParliamentDataHandler(object):
 
     def preprocess(self, change = None, no_change = None, model = None, model_output_dir = None, retrofit_outdir=None, overwrite=None):
         """TODO: Use this function to unify the retrofit prep, the tokenising, splitting of speeches, etc. so this is not duplicated in subsequent processes"""
-        assert model in ['retrofit', 'retro', 'whole', 'speaker']
+        assert model in ['retrofit', 'retro', 'whole', 'speaker', 'speaker_plus']
         self.change = change
         self.no_change = no_change
         self.model_type = model

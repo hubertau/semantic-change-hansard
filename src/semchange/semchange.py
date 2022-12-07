@@ -802,7 +802,9 @@ class ParliamentDataHandler(object):
         self.logger.info(f'POSTPROCESS - SPEAKER - Total words: {len(total_words)}')
 
         word_sims = defaultdict(list)
-        for word in total_words:
+        for index, word in enumerate(total_words): 
+            if index % 100 == 0:
+                self.logger.info(f'Processed {index} of {len(total_words)} = {100*index/len(total_words):.2f}%')
             for t1_model in self.dictOfModels['t1']:
                 for t2_model in self.dictOfModels['t2']:
                     if word in t1_model.wv.index_to_key and word in t2_model.wv.index_to_key:

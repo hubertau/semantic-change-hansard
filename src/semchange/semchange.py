@@ -1485,6 +1485,8 @@ class ParliamentDataHandler(object):
                 #     # self.logger.info(self.logreg_data)
                 if self.model_type =='retrofit':
                     self.logreg_data.to_csv(os.path.join(model_output_dir, f'logreg_df_{self.retrofit_factor}.csv'))
+                elif self.model_type == 'speaker_plus':
+                    self.logreg_data.to_csv(os.path.join(model_output_dir, f'logreg_df_speaker_plus.csv'))
                 else:
                     self.logreg_data.to_csv(os.path.join(model_output_dir, f'logreg_df.csv'))
                 X = self.logreg_data[logreg_data_dict[logreg_type]].values.reshape(-1, len(logreg_data_dict[logreg_type]))
@@ -1558,6 +1560,8 @@ class ParliamentDataHandler(object):
 
         if self.model_type in ['retrofit', 'retro']:
             self.words_of_interest = self.cosine_similarity_df.copy()
+        elif self.model_type == 'speaker_plus':
+            return None
 
         for row in self.words_of_interest.itertuples():
 

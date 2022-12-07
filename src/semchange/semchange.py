@@ -472,7 +472,7 @@ class ParliamentDataHandler(object):
             vocab_skipped = 0
             for row in self.split_speeches_by_mp.itertuples():
                 model_savepath = os.path.join(outdir, f'speaker_{row.df_name}.model')
-                if (os.path.isfile(model_savepath) and not overwrite):
+                if (os.path.isfile(model_savepath) and not overwrite) or (not os.path.isfile(savepath) and skip_model_check):
                     if self.verbosity > 0:
                         self.logger.info('MODELLING - SPEAKER - Model exists and no overwrite flag set.')
                     self.speaker_saved_models.append(model_savepath)

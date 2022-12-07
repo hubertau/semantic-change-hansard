@@ -754,10 +754,6 @@ class ParliamentDataHandler(object):
             self.words_of_interest.loc[self.words_of_interest['Word'].isin(self.change), 'semanticDifference'] = 'change'
             self.words_of_interest.loc[self.words_of_interest['Word'].isin(self.no_change), 'semanticDifference'] = 'no_change'
 
-            self.words_of_interest.sort_values(by='Cosine_similarity')
-
-            print(self.words_of_interest)
-
             return self.words_of_interest
 
         elif self.model_type in ['retrofit', 'retro']:

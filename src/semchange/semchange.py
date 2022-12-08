@@ -561,7 +561,7 @@ class ParliamentDataHandler(object):
             vocab_skipped = 0
             for row in self.retrofit_prep_df.itertuples(): 
 
-                savepath = os.path.join(outdir, row.df_name)
+                savepath = os.path.join(outdir, f"{row.df_name}.model")
                 if (os.path.isfile(savepath) and overwrite) or (not os.path.isfile(savepath) and not skip_model_check):
                     model = gensim.models.Word2Vec(
                         row.tokens,

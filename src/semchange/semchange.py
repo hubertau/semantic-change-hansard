@@ -1689,7 +1689,7 @@ class ParliamentDataHandler(object):
                                     group2= self.words_of_interest['overlappingNeighbours'][self.words_of_interest['semanticDifference'] == 'no_change'], group2_name= "no_change")
         # print(summary_neighbours)
         if self.model_type == 'retrofit':
-            savepath = os.path.join(model_output_dir, 'nn_comparison_ttest_{self.retrofit_factor}.csv')
+            savepath = os.path.join(model_output_dir, f'nn_comparison_ttest_{self.retrofit_factor}.csv')
         else:
             savepath = os.path.join(model_output_dir, 'nn_comparison_ttest.csv')
         summary_neighbours.to_csv(savepath)

@@ -414,7 +414,13 @@ class ParliamentDataHandler(object):
 
         return splitspeeches
 
-    def model(self, outdir, overwrite=False, skip_model_check = False ,min_vocab_size = 10000):
+    def model(self,
+        outdir,
+        overwrite=False,
+        skip_model_check = False,
+        min_vocab_size = 10000,
+        overlap_req = 0.5
+    ):
         """Function to generate the actual Word2Vec models.
         """
         self.outdir = outdir
@@ -488,10 +494,10 @@ class ParliamentDataHandler(object):
                             window = 5,
                             sg = 1
                         )
-                        vocab_of_interest = set(self.change + self.no_change)
+                        vocab_of_interest = set(self.change)
                         req_size = len(vocab_of_interest)
                         overlap = len(vocab_of_interest.intersection(set(model.wv.index_to_key)))/req_size
-                        if overlap<0.5:
+                        if overlap<overlap_req:
                             vocab_skipped += 1
                             self.logger.info(f'MODELLING - Skipped {row.df_name} due to not enough overlap with words of interest. Overlap: {overlap:.2f}')
                             continue
@@ -567,10 +573,10 @@ class ParliamentDataHandler(object):
 
                     count += 1
                     # Skip if not containing correct vocab
-                    vocab_of_interest = set(self.change + self.no_change)
+                    vocab_of_interest = set(self.change)
                     req_size = len(vocab_of_interest)
                     overlap = len(vocab_of_interest.intersection(set(model.wv.index_to_key)))/req_size
-                    if overlap<0.5:
+                    if overlap<overlap_req:
                         vocab_skipped += 1
                         self.logger.info(f'Modelling: Skipped {row.df_name} due to not enough overlap with words of interest. Overlap: {overlap:.2f}')
                         continue
@@ -1177,7 +1183,7 @@ class ParliamentDataHandler(object):
 
         # define output filenames
         self.vectorFileName = os.path.join(self.retrofit_outdir,f'vectors_{self.retrofit_factor}.hdf5')
-        self.vectorIndexFileName = os.path.join(self.retrofit_outdir,f'vector_index_to_key_{self.parliament_name}.pkl')
+        self.vectorIndexFileName = os.path.join(self.retrofit_outdir,f'vector_index_to_key_{self.parliament_name}_{self.retrofit_factor}.pkl')
 
         # sanity check that we do have retrofit savepaths readily accesible
         assert len(self.retrofit_model_paths) > 0
@@ -1703,6 +1709,7 @@ class ParliamentDataHandler(object):
 @click.option('--outdir', required=True, help='Output file directory')
 @click.option('--model_output_dir', required=True, help='Outputs after model generation, such as average vectors')
 @click.option('--model', required=False, default='whole')
+@click.option('--overlap_req', required=False, default=0.75)
 @click.option('--tokenized_outdir', required=False)
 @click.option('--min_vocab_size', required=False, type=int)
 @click.option('--split_date', required=False, default='2016-06-23 23:59:59')
@@ -1730,6 +1737,7 @@ def main(
         retrofit_outdir,
         retrofit_factor,
         model,
+        overlap_req,
         undersample,
         log_level,
         log_dir,
@@ -1838,7 +1846,8 @@ def main(
         outdir,
         overwrite=overwrite_model,
         skip_model_check = skip_model_check,
-        min_vocab_size=min_vocab_size
+        min_vocab_size=min_vocab_size,
+        overlap_req=overlap_req
     )
     handler.postprocess(
         model_output_dir,

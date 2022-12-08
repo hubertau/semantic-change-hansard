@@ -784,33 +784,49 @@ class ParliamentDataHandler(object):
     def process_speaker_plus(self):
 
         # 2022-12-06: Speaker plus: take cosine similarity of the same word in t1 and word in t2, with no averaging
-        self.valid_split_speeches_by_mp = []
-        self.dictOfModels = {
-            't1': [],
-            't2': []
-        }
+        # self.valid_split_speeches_by_mp = []
+        # self.dictOfModels = {
+        #     't1': [],
+        #     't2': []
+        # }
+        # total_words = set()
+        # for model_savepath in self.speaker_saved_models:
+        #     model = gensim.models.Word2Vec.load(model_savepath)
+        #     # if len(model.wv.index_to_key) < min_vocab_size:
+        #         # continue
+        #     if 't1' in model_savepath:
+        #         self.dictOfModels['t1'].append(model)
+        #     else:
+        #         self.dictOfModels['t2'].append(model)
+        #     # else:
+        #     self.valid_split_speeches_by_mp.append(model_savepath)
+        #     total_words.update(model.wv.index_to_key)
+        # self.logger.info(f'POSTPROCESS - SPEAKER - Total words: {len(total_words)}')
+
+        self.pairs_of_models = []
         total_words = set()
         for model_savepath in self.speaker_saved_models:
-            model = gensim.models.Word2Vec.load(model_savepath)
-            # if len(model.wv.index_to_key) < min_vocab_size:
-                # continue
             if 't1' in model_savepath:
-                self.dictOfModels['t1'].append(model)
-            else:
-                self.dictOfModels['t2'].append(model)
-            # else:
-            self.valid_split_speeches_by_mp.append(model_savepath)
-            total_words.update(model.wv.index_to_key)
-        self.logger.info(f'POSTPROCESS - SPEAKER - Total words: {len(total_words)}')
+                t2_string = model_savepath.replace('t1','t2')
+                if t2_string in self.speaker_saved_models:
+                    model1 = gensim.models.Word2Vec.load(model_savepath)
+                    model2 = gensim.models.Word2Vec.load(model_savepath)
+                    self.pairs_of_models.append((model1,model2))
+        self.logger.info(f'Pairs: {len(self.pairs_of_models)}')
 
         word_sims = defaultdict(list)
         for index, word in enumerate(total_words): 
             if index % 100 == 0:
                 self.logger.info(f'Processed {index} of {len(total_words)} = {100*index/len(total_words):.2f}%')
-            for t1_model in self.dictOfModels['t1']:
-                for t2_model in self.dictOfModels['t2']:
-                    if word in t1_model.wv.index_to_key and word in t2_model.wv.index_to_key:
-                        word_sims[word].append(self.cosine_similarity(t1_model.wv[word], t2_model.wv[word]))
+            for m1, m2 in self.pairs_of_models:
+                if word in m1.wv.index_to_key and word in m2.wv.index_to_key:
+                    word_sims.append(self.cosine_similarity(m1.wv[word],m2.wv[word]))
+        #     for t1_model in self.dictOfModels['t1']:
+        #         # get string for t2 model
+        #         t2_model_str = t1_
+        #         # for t2_model in self.dictOfModels['t2']:
+        #             if word in t1_model.wv.index_to_key and word in t2_model.wv.index_to_key:
+        #                 word_sims[word].append(self.cosine_similarity(t1_model.wv[word], t2_model.wv[word]))
         word_vals = []
         for word, values in word_sims.items():
             word_vals.append({

@@ -419,7 +419,8 @@ class ParliamentDataHandler(object):
         overwrite=False,
         skip_model_check = False,
         min_vocab_size = 10000,
-        overlap_req = 0.5
+        overlap_req = 0.5,
+        align = True
     ):
         """Function to generate the actual Word2Vec models.
         """
@@ -525,7 +526,7 @@ class ParliamentDataHandler(object):
             else:
                 self.logger.info(f"No models made or skipped")
 
-            if new:
+            if new and align:
                 self.logger.info('MODELLING - SPEAKER - New models detected. Loading back in and running alignment')
                 for ind, model_path in enumerate(self.speaker_saved_models[:-1]):
 
@@ -611,7 +612,7 @@ class ParliamentDataHandler(object):
             self.logger.info(f"MODELLING - RETROFIT - {vocab_skipped} out of {count} models skipped due to insufficient overlap with vocab of interest")
             self.logger.info(f"Total skipped: {vocab_skipped+skipped} out of {count} = {100*(vocab_skipped+skipped)/count:.2f}%")
 
-            if new:
+            if new and align:
                 self.logger.info('MODELLING - RETROFIT - New models detected. Loading back in and running alignment')
                 for ind, model_path in enumerate(self.retrofit_model_paths[:-1]):
 
@@ -1725,6 +1726,7 @@ class ParliamentDataHandler(object):
 @click.option('--outdir', required=True, help='Output file directory')
 @click.option('--model_output_dir', required=True, help='Outputs after model generation, such as average vectors')
 @click.option('--model', required=False, default='whole')
+@click.option('--align/--no-align', default=True)
 @click.option('--overlap_req', required=False, default=0.75)
 @click.option('--tokenized_outdir', required=False)
 @click.option('--min_vocab_size', required=False, type=int)
@@ -1753,6 +1755,7 @@ def main(
         retrofit_outdir,
         retrofit_factor,
         model,
+        align,
         overlap_req,
         undersample,
         log_level,
@@ -1863,7 +1866,8 @@ def main(
         overwrite=overwrite_model,
         skip_model_check = skip_model_check,
         min_vocab_size=min_vocab_size,
-        overlap_req=overlap_req
+        overlap_req=overlap_req,
+        align=align
     )
     handler.postprocess(
         model_output_dir,

@@ -14,6 +14,7 @@ import pandas as pd
 @click.option('--outdir', required=True, help='Output file directory')
 @click.option('--model_output_dir', required=True, help='Outputs after model generation, such as average vectors')
 @click.option('--model', required=False, default='whole')
+@click.option('--align/--no-align', default=True)
 @click.option('--overlap_req', required=False, default=0.75)
 @click.option('--tokenized_outdir', required=False)
 @click.option('--min_vocab_size', required=False, type=int)

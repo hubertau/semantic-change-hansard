@@ -43,6 +43,7 @@ def main(
         retrofit_outdir,
         retrofit_factor,
         model,
+        align,
         overlap_req,
         undersample,
         log_level,
@@ -153,7 +154,8 @@ def main(
         overwrite=overwrite_model,
         skip_model_check = skip_model_check,
         min_vocab_size=min_vocab_size,
-        overlap_req=overlap_req
+        overlap_req=overlap_req,
+        align=align
     )
     
     logger.info(f'MODELLING COMPLETE. NOW EXTRACTING WORDS...')

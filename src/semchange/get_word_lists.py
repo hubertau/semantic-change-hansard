@@ -174,7 +174,7 @@ def main(
     colnames = [list(i.keys()) for i in change_dict.values()]
     colnames = [item for sublist in colnames for item in sublist]
     colnames = list(set(colnames))
-    out = pd.DataFrame.from_dict(orient='index')
+    out = pd.DataFrame.from_dict(data=change_dict, orient='index')
     out.to_csv(os.path.join(model_output_dir, f'words.csv'))
 
 if __name__ == '__main__':

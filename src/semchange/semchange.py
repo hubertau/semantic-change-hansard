@@ -479,12 +479,18 @@ class ParliamentDataHandler(object):
             vocab_skipped = 0
             for row in self.split_speeches_by_mp.itertuples():
                 model_savepath = os.path.join(outdir, f'speaker_{row.df_name}.model')
+
+                # if the file exists and we are not overwriting, record that is is there.
                 if (os.path.isfile(model_savepath) and not overwrite):
                     if self.verbosity > 0:
                         self.logger.info('MODELLING - SPEAKER - Model exists and no overwrite flag set.')
                     self.speaker_saved_models.append(model_savepath)
+
+                # if the file does not exist and we are not checking if it should, just continue
                 elif (not os.path.isfile(model_savepath) and skip_model_check):
                     continue
+
+                # otherwise, generate model
                 else:
                     try:
                         count += 1
@@ -518,7 +524,7 @@ class ParliamentDataHandler(object):
                     except Exception as e:
                         self.logger.error(e)
 
-            # self.logger.debug(self.speaker_saved_models)
+            self.logger.debug(self.speaker_saved_models)
             if count > 0:
                 self.logger.info(f"MODELLING - SPEAKER - {skipped} out of {count}  models skipped due to vocab size")
                 self.logger.info(f"MODELLING - SPEAKER - {vocab_skipped} out of {count} models skipped due to insufficient overlap with vocab of interest")

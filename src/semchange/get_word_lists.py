@@ -158,6 +158,8 @@ def main(
         align=align
     )
 
+    print(len(handler.speaker_saved_models))
+
     logger.info(f'MODELLING COMPLETE. NOW EXTRACTING WORDS...')
     change_dict = {k: Counter() for k in change}
     for model_path in handler.speaker_saved_models:

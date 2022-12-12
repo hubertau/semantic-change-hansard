@@ -168,6 +168,8 @@ def main(
             if word in model.wv.index_to_key:
                 change_dict[word]['self'] += 1
                 words_to_add = model.wv.similar_by_word(word, 10)
+                # get rid of similarities
+                words_to_add = [i[0] for i in words_to_add]
                 for word_to_add in words_to_add:
                     if word_to_add not in change:
                         change_dict[word][word_to_add] += 1

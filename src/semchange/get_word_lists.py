@@ -157,7 +157,7 @@ def main(
         overlap_req=overlap_req,
         align=align
     )
-    
+
     logger.info(f'MODELLING COMPLETE. NOW EXTRACTING WORDS...')
     change_dict = {k: Counter() for k in change}
     for model_path in handler.speaker_saved_models:
@@ -169,13 +169,13 @@ def main(
                 for word_to_add in words_to_add:
                     if word_to_add not in change:
                         change_dict[word][word_to_add] += 1
-    with open(os.path.join(model_output_dir, f'words_{handler.parliament_name}.pkl'), 'wb') as f:
+    with open(os.path.join(model_output_dir, f'words.pkl'), 'wb') as f:
         pickle.dump(change_dict, f)
     colnames = [list(i.keys()) for i in change_dict.values()]
     colnames = [item for sublist in colnames for item in sublist]
     colnames = list(set(colnames))
     out = pd.DataFrame.from_dict(orient='index')
-    out.to_csv(os.path.join(model_output_dir, f'words_{handler.parliament_name}|.csv'))
+    out.to_csv(os.path.join(model_output_dir, f'words.csv'))
 
 if __name__ == '__main__':
     main()

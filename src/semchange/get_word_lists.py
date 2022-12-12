@@ -158,13 +158,13 @@ def main(
         align=align
     )
 
-    print(len(handler.speaker_saved_models))
+    logger.info(len(handler.speaker_saved_models))
 
     logger.info(f'MODELLING COMPLETE. NOW EXTRACTING WORDS...')
-    change_dict = {k: Counter() for k in change}
+    change_dict = {k: Counter() for k in change_list}
     for model_path in handler.speaker_saved_models:
         model = gensim.models.Word2Vec.load(model_path)
-        for word in change:
+        for word in change_list:
             if word in model.wv.index_to_key:
                 change_dict[word]['self'] += 1
                 words_to_add = model.similar_by_word(word, 10)

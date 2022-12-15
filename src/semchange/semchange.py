@@ -811,16 +811,22 @@ class ParliamentDataHandler(object):
         # self.logger.info(f'POSTPROCESS - SPEAKER - Total words: {len(total_words)}')
 
         self.pairs_of_models = []
+        self.dictOfModels = {
+            't1': [],
+            't2': []
+        }
         total_words = set()
         for model_savepath in self.speaker_saved_models:
             if 't1' in model_savepath:
+                model1 = gensim.models.Word2Vec.load(model_savepath)
                 t2_string = model_savepath.replace('t1','t2')
                 if t2_string in self.speaker_saved_models:
-                    model1 = gensim.models.Word2Vec.load(model_savepath)
-                    model2 = gensim.models.Word2Vec.load(model_savepath)
+                    model2 = gensim.models.Word2Vec.load(t2_string)
                     self.pairs_of_models.append((model1,model2))
                     total_words.update(model1.wv.index_to_key)
                     total_words.update(model2.wv.index_to_key)
+                    self.dictOfModels['t1'].append(model1)
+                    self.dictOfModels['t2'].append(model2)
         self.logger.info(f'Pairs: {len(self.pairs_of_models)}')
 
         word_sims = defaultdict(list)

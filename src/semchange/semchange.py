@@ -1238,9 +1238,10 @@ class ParliamentDataHandler(object):
             syn_df = pd.DataFrame(columns = ['full_model_path','modelKey', 'time', 'speaker', 'party', 'debate', 'debate_id'])
             syn_df['full_model_path'] = self.retrofit_model_paths
             syn_df['modelKey'] = [os.path.split(i)[-1] for i in self.retrofit_model_paths]
-            syn_df['time'] = syn_df['modelKey'].apply(lambda x: x.split('df_')[1].split('_')[0].split('.model')[0])
+            syn_df['time'] = syn_df['modelKey'].apply(lambda x: x.split('df_')[1].split('_')[0])
             syn_df['speaker'] = syn_df['modelKey'].apply(lambda x: re.split('t[12]_', x.split('df_')[1])[1])
             syn_df['speaker'] = syn_df['speaker'].apply(lambda x: x.replace(' ','_'))
+            syn_df['speaker'] = syn_df['speaker'].apply(lambda x: x.split('.model')[0])
             # syn_df['party'] = syn_df['speaker'].apply(lambda x: self.retrofit_prep_df[self.retrofit_prep_df['speaker'] == x]['party'].iat[0])
             # self.logger.info(syn_df['speaker'].unique())
             # self.logger.info(self.data['speaker'].unique())

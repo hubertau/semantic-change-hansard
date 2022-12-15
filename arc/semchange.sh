@@ -21,26 +21,39 @@ lang=$2
 event="911"
 model=$3
 split_date="2001-09-11"
+retrofit_factor="party-time"
+req=$4
 
 echo $country
 echo $lang
 echo $event
 echo $model
 echo $split_date
+echo $retrofit_factor
+
+model_path=$model
+if [[ "$model" == *"_plus"* ]]; then
+  model_path=${model%"_plus"}
+  echo $model_path
+fi
+
 
 python semchange.py \
   -f $DATA/data_semantic/01_raw/${country}_${lang}.csv \
   -c $DATA/data_semantic/02_intermediate/change_${event}_${lang}.txt \
   -nc $DATA/data_semantic/02_intermediate/nochange_${lang}.txt \
   --split_date ${split_date} \
-  --split_range 3 \
+  --split_range 5 \
   --model ${model} \
+  --overlap_req ${req} \
   --retrofit_outdir $DATA/data_semantic/02_intermediate/${country}_${lang}_${event}/ \
-  --min_vocab_size 5000 \
+  --retrofit_factor ${retrofit_factor} \
+  --min_vocab_size 1000 \
   --tokenized_outdir $DATA/data_semantic/02_intermediate/${country}_${lang}_${event}/ \
-  --outdir $DATA/data_semantic/04_models/${model}/${country}_${lang}_${event}/ \
-  --model_output_dir $DATA/data_semantic/05_model_outputs/${model}/${country}_${lang}_${event}/ \
-  --overwrite_preprocess \
+  --outdir $DATA/data_semantic/04_models/${model_path}/${country}_${lang}_${event}/ \
+  --model_output_dir $DATA/data_semantic/05_model_outputs/${model_path}/${country}_${lang}_${event}/ \
+  --log_level INFO \
   --overwrite_postprocess \
   --overwrite_model \
-  # --log_level DEBUG \
+  --overwrite_preprocess \
+  # --skip_model_check \

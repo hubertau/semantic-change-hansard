@@ -829,7 +829,7 @@ class ParliamentDataHandler(object):
                 self.logger.info(f'Processed {index} of {len(total_words)} = {100*index/len(total_words):.2f}%')
             for m1, m2 in self.pairs_of_models:
                 if word in m1.wv.index_to_key and word in m2.wv.index_to_key:
-                    word_sims.append(self.cosine_similarity(m1.wv[word],m2.wv[word]))
+                    word_sims[word].append(self.cosine_similarity(m1.wv[word],m2.wv[word]))
         #     for t1_model in self.dictOfModels['t1']:
         #         # get string for t2 model
         #         t2_model_str = t1_

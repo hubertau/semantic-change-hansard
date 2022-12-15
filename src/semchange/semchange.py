@@ -585,12 +585,12 @@ class ParliamentDataHandler(object):
                     overlap = len(vocab_of_interest.intersection(set(model.wv.index_to_key)))/req_size
                     if overlap<overlap_req:
                         vocab_skipped += 1
-                        self.logger.info(f'Modelling: Skipped {row.df_name} due to not enough overlap with words of interest. Overlap: {overlap:.2f}')
+                        self.logger.debug(f'Modelling: Skipped {row.df_name} due to not enough overlap with words of interest. Overlap: {overlap:.2f}')
                         continue
                     # Skip if below minimum size
                     if len(model.wv.index_to_key) < min_vocab_size:
                         skipped += 1
-                        self.logger.info(f'MODELLING - SKIPPED {row.df_name} due to insufficient vocab size. Vocab size: {len(model.wv.index_to_key)}')
+                        self.logger.debug(f'MODELLING - SKIPPED {row.df_name} due to insufficient vocab size. Vocab size: {len(model.wv.index_to_key)}')
                         continue
 
                     if not new:
@@ -629,7 +629,7 @@ class ParliamentDataHandler(object):
                     _ = self._smart_procrustes_align_gensim(model_current, model_next)
 
                     current_common_vocab_size = len(set(model_current.wv.index_to_key).intersection(set(model_next.wv.index_to_key)))
-                    self.logger.info(f"MODELLING - ALIGNMENT - CURRENT COMMON VOCAB IS {current_common_vocab_size} after alignment at index {ind}, model: {model_path}")
+                    self.logger.debug(f"MODELLING - ALIGNMENT - CURRENT COMMON VOCAB IS {current_common_vocab_size} after alignment at index {ind}, model: {model_path}")
 
                     if np.sum(check-model_current.wv[model_current.wv.index_to_key[0]])>0:
                         self.logger.warning('MODELLING - RETROFIT - PLEASE CHECK ALIGNMENT PROCEDURE')
@@ -1242,6 +1242,7 @@ class ParliamentDataHandler(object):
             syn_df['speaker'] = syn_df['modelKey'].apply(lambda x: re.split('t[12]_', x.split('df_')[1])[1])
             syn_df['speaker'] = syn_df['speaker'].apply(lambda x: x.replace(' ','_'))
             # syn_df['party'] = syn_df['speaker'].apply(lambda x: self.retrofit_prep_df[self.retrofit_prep_df['speaker'] == x]['party'].iat[0])
+            self.logger.info(syn_df['speaker'].unique())
             syn_df['party'] = syn_df['speaker'].apply(lambda x: self.data[self.data['speaker'] == x]['party'].iat[0])
             # syn_df['party'] = 
 

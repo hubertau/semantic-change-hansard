@@ -1242,8 +1242,8 @@ class ParliamentDataHandler(object):
             syn_df['speaker'] = syn_df['modelKey'].apply(lambda x: re.split('t[12]_', x.split('df_')[1])[1])
             syn_df['speaker'] = syn_df['speaker'].apply(lambda x: x.replace(' ','_'))
             # syn_df['party'] = syn_df['speaker'].apply(lambda x: self.retrofit_prep_df[self.retrofit_prep_df['speaker'] == x]['party'].iat[0])
-            self.logger.info(syn_df['speaker'].unique())
-            self.logger.info(self.data['speaker'].unique())
+            # self.logger.info(syn_df['speaker'].unique())
+            # self.logger.info(self.data['speaker'].unique())
             syn_df['party'] = syn_df['speaker'].apply(lambda x: self.data[self.data['speaker'] == x]['party'].iat[0])
             # syn_df['party'] = 
 

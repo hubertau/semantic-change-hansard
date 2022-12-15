@@ -819,6 +819,8 @@ class ParliamentDataHandler(object):
                     model1 = gensim.models.Word2Vec.load(model_savepath)
                     model2 = gensim.models.Word2Vec.load(model_savepath)
                     self.pairs_of_models.append((model1,model2))
+                    total_words.update(model1.wv.index_to_key)
+                    total_words.update(model2.wv.index_to_key)
         self.logger.info(f'Pairs: {len(self.pairs_of_models)}')
 
         word_sims = defaultdict(list)

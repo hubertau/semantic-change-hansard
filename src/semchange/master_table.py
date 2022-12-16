@@ -22,6 +22,11 @@ def main(scan_dir, outfile):
             model_type = 'logreg'
         else:
             model_type = 'nn' 
+
+        if 'retrofit' in f and 'logreg' in split_path[-1]:
+            factor = split_path[1].split('logreg_')[1].split('.csv')[0]
+        else:
+            factor = None
         country, lang, event = split_path[0].split('/')[-1].split('_')
         data = pd.read_csv(f)
         for row in data.itertuples():
@@ -39,6 +44,7 @@ def main(scan_dir, outfile):
 
                 rows.append({
                     "Model": model,
+                    "Factor": factor,
                     "Type": model_type,
                     "Accuracy": accuracy,
                     "Precision": precision,

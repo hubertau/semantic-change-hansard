@@ -18,9 +18,10 @@ cd $HOME/2022-08a-Semantic_Change/src/semchange/
 
 country=$1
 lang=$2
-event="911"
+event="brexit"
 model=$3
-split_date="2001-09-11"
+# split_date="2001-09-11"
+split_date="2016-01-01"
 retrofit_factor="party-time"
 req=$4
 

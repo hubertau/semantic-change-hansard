@@ -1548,7 +1548,7 @@ class ParliamentDataHandler(object):
 
                 logreg = LogisticRegression()
 
-                self.logger.info(X_train)
+                # self.logger.info(X_train)
                 kf = logreg.fit(X_train, y_train)
 
                 y_pred = logreg.predict(X_test)
@@ -1624,39 +1624,15 @@ class ParliamentDataHandler(object):
             neighboursInT1.append(x)
             neighboursInT2.append(y)
 
-            # self.words_of_interest.at[row.Index, 'neighboursInT1'] = pd.Series([x])
-            # self.words_of_interest.at[row.Index, 'neighboursInT2'] = pd.Series([y])
-
         self.words_of_interest['neighboursInT1'] = neighboursInT1
         self.words_of_interest['neighboursInT2'] = neighboursInT2
 
-        #words_of_interest['overlappingNeighbours'] = ?
-        #intersectingNeighbs = set(words_of_interest['neighboursInT1'].to_list()).intersect(words_of_interest['neighboursInT2'].to_list())
-        # lengthOverlap = []
-
-        # for index in self.words_of_interest['neighboursInT1'].index):
-        #     neighboursT1 = self.words_of_interest.at[index, 'neighboursInT1']
-        #     neighboursT2 = self.words_of_interest.at[index, 'neighboursInT2']
-        #     lengthOverlap.append(len(
-        #         set(neighboursT1).intersection(set(neighboursT2))
-        #     ))
         self.logger.info(self.words_of_interest)
         self.words_of_interest['overlappingNeighbours'] = self.words_of_interest.apply(lambda row: len(set(row['neighboursInT1']).intersection(set(row['neighboursInT2']))), axis=1)
 
         self.words_of_interest[self.words_of_interest['semanticDifference']=='change']['overlappingNeighbours'].describe()
         self.words_of_interest[self.words_of_interest['semanticDifference']=='no_change']['overlappingNeighbours'].describe()
-        # neighbours_of_changed_words = self.words_of_interest[self.words_of_interest['semanticDifference']=='change'].sort_values(by='Cosine_similarity',ascending=True)[['Word','neighboursInT1','neighboursInT2']]
 
-
-        # ### DIFFERENT INPUTS INTO LOGREG
-        # if nn_type == 0:
-        #     X_train.drop(['TotalFrequency','Frequency_t1', 'Frequency_t2', 'TotalFrequency', 'FrequencyRatio'], axis=1, inplace=True)
-        # elif nn_type == 1:
-        #     X_train['log_freq'] = np.log10(X_train['TotalFrequency'])
-        #     X_train.drop(['TotalFrequency','Frequency_t1', 'Frequency_t2', 'TotalFrequency', 'FrequencyRatio'], axis=1, inplace=True)
-        # elif nn_type == 2:
-        #     X_train['log_freq'] = np.log10(X_train['TotalFrequency'])
-        #     X_train.drop(['TotalFrequency','Frequency_t1', 'Frequency_t2', 'TotalFrequency'], axis=1, inplace=True)
 
         X = self.words_of_interest['overlappingNeighbours'].values.reshape(-1,1)
         y = self.words_of_interest['semanticDifference']

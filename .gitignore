@@ -3,3 +3,4 @@ data/*
 *.log
 *.DS_Store
 google_trans_new-main/test.txt
+arc/

@@ -4,7 +4,7 @@ python3 src/semchange/semchange.py \
   -f data/01_raw/Corp_HouseOfCommons_V2.csv \
   -c data/02_intermediate/Corp_HouseOfCommons_change.txt \
   -nc data/02_intermediate/Corp_HouseOfCommons_nochange.txt \
-  --outdir data/04_models/mp_models \
+  --outdir data/04_models/whole \
   --model_output_dir data/05_model_outputs \
-  --model baseline \
-  --tokenized_outdir data/02_intermediate
+  --model whole \
+  --tokenized_outdir data/02_intermediate 

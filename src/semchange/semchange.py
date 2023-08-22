@@ -13,14 +13,19 @@ import pickle
 from concurrent.futures import ProcessPoolExecutor
 from csv import reader
 
+import gc
 import re
 import click
 from dateutil.relativedelta import relativedelta
 import gensim
+from gensim.models import KeyedVectors
+from sentence_transformers import SentenceTransformer
+
 import h5py
 import imblearn
 import matplotlib.pyplot as plt
 import nltk
+import re
 import numpy as np
 import pandas as pd
 import researchpy as rp
@@ -97,6 +102,22 @@ class ParliamentDataHandler(object):
         df = pd.read_csv(data)
         return cls(df, tokenized=tokenized, data_filename=data)
 
+    def _break_into_sentences(self, paragraph):
+        if isinstance(paragraph, str):
+            # Split the paragraph at every '.' or '?', but capture the delimiters
+            sentences = re.split(r'(\.|\?)', paragraph)
+            # Combine the sentences with their respective delimiters
+            sentences = [sentences[i] + (sentences[i+1] if i+1 < len(sentences) else '') for i in range(0, len(sentences), 2)]
+            # Remove any empty strings from the list, which can occur after splitting.
+            sentences = [sentence.strip() for sentence in sentences if sentence.strip()]
+        elif isinstance(paragraph, float):
+            self.logger.warning(f"Float detected in tokenization: {paragraph}")
+            sentences = [paragraph]
+        elif isinstance(sentence, list):
+            self.logger.warning(f"List detected in tokenization: {paragraph}")
+            sentences = paragraph
+        return sentences
+
     def _tokenize_one_sentence(self, sentence):
         if isinstance(sentence, str):
             sentence = sentence.lower()
@@ -110,6 +131,9 @@ class ParliamentDataHandler(object):
             tokens = sentence
         return tokens
 
+    def _tokenize_each_sentence(self, sentences):
+        return [ self._tokenize_one_sentence(sentence) for sentence in sentences ]
+
     def tokenize_data(self, tokenized_data_dir=None, overwrite = False):
         if self.data_filename and tokenized_data_dir:
             original_filename = os.path.split(self.data_filename)[-1]
@@ -122,8 +146,15 @@ class ParliamentDataHandler(object):
         if self.tokenized:
             return None
         elif (os.path.isfile(savepath) and overwrite) or not os.path.isfile(savepath):
-            tokens = self.data.text.apply(self._tokenize_one_sentence)
-            self.data['tokenized'] = tokens
+            # Break into sentences
+            sentences = self.data.text.apply(self._break_into_sentences)
+            self.data['sentences'] = sentences
+            # Also save the words present in every sentence
+            self.data['tokenized_sentences'] = self.data.sentences.apply(self._tokenize_each_sentence)
+            # And tokenize
+            #tokens = self.data.text.apply(self._tokenize_one_sentence)
+            self.data['tokenized'] = self.data['tokenized_sentences'].apply(lambda x: [j for i in x for j in i])
+
             self.data.to_pickle(savepath)
             self.logger.info(f'Saved to {savepath}')
         elif (os.path.isfile(savepath) and not overwrite):
@@ -133,7 +164,7 @@ class ParliamentDataHandler(object):
     def split_by_date(self, date, split_range):
 
         # conert relevant stuff into datetime objects
-        date = datetime.datetime.strptime(date, '%Y-%m-%d')
+        date = datetime.datetime.strptime(date[:10], '%Y-%m-%d')
         if split_range is not None:
             leftbound  = date - relativedelta(years=split_range)
             rightbound = date + relativedelta(years=split_range)
@@ -199,10 +230,8 @@ class ParliamentDataHandler(object):
         if self.model_type in ['retrofit', 'retro']:
             self.logger.info(f'PREPROCESS: Running preprocessing for retrofit.')
             self.retrofit_prep(retrofit_outdir=retrofit_outdir, overwrite = overwrite)
-        elif self.model_type in ['speaker', 'speaker_plus']:
+        elif self.model_type in ['whole', 'speaker', 'speaker_plus']:
             self.logger.info(f'PREPROCESS - {self.model_type.upper()} - None required.')
-        elif self.model_type == 'whole':
-            self.logger.info(f'PREPROCESS - WHOLE - None required.')
 
     def _get_retrofit_word_counts(self, word_list, time='t1'):
         output = Counter()
@@ -416,84 +445,164 @@ class ParliamentDataHandler(object):
 
     def model(self,
         outdir,
+        embedding = 'word',
         overwrite=False,
         skip_model_check = False,
         min_vocab_size = 10000,
         overlap_req = 0.5,
         align = True
     ):
-        """Function to generate the actual Word2Vec models.
+        """Function to generate the actual word/sentence embedding models.
         """
         self.outdir = outdir
 
-        if self.model_type == 'whole':
-            self.logger.info('MODELLING - WHOLE')
+        if self.embedding=='word':
+            self.logger.info('MODELLING - WORD EMBEDDINGS')
 
-            savepath_t1 = os.path.join(outdir, 'whole_model_t1.model')
-            savepath_t2 = os.path.join(outdir, 'whole_model_t2.model')
+            if self.model_type == 'whole':
+                self.logger.info('MODELLING - WHOLE')
 
-            if os.path.isfile(savepath_t1) and not overwrite:
-                self.model1 = gensim.models.Word2Vec.load(savepath_t1)
-                self.model2 = gensim.models.Word2Vec.load(savepath_t2)
-                self.logger.info('MODELLING - whole models loaded in ')
-            else:
-                # create model for time 1
-                self.logger.info('MODELLING - creating model for time 1')
-                self.model1 = gensim.models.Word2Vec(
-                        self.data_t1['tokenized'],
-                        min_count=1,
-                        vector_size=300,
-                        window = 5,
-                        sg = 1
-                    )
-                self.logger.info('MODELLING - creating model for time 2')
-                self.model2 = gensim.models.Word2Vec(
-                        self.data_t2['tokenized'],
-                        min_count=1,
-                        vector_size=300,
-                        window = 5,
-                        sg = 1
-                    )
+                savepath_t1 = os.path.join(outdir, 'whole_model_t1.model')
+                savepath_t2 = os.path.join(outdir, 'whole_model_t2.model')
 
-                _ = self._smart_procrustes_align_gensim(self.model1, self.model2)
-
-                common_vocab = len(set(self.model1.wv.index_to_key).intersection(set(self.model2.wv.index_to_key)))
-                self.logger.info('MODELLING - WHOLE - ALIGNMENT COMPLETE')
-                if common_vocab == 0:
-                    self.logger.error("MODELLING - WHOLE - NO COMMON VOCAB LEFT OVER")
-
-                self.model1.save(savepath_t1)
-                self.model2.save(savepath_t2)
-
-        if self.model_type in ['speaker', 'speaker_plus']:
-
-            """
-            With the speaker model, we train word embeddings for each MP and split into two time groups as well, t1 and t2.
-            """
-
-            self.split_speeches_by_mp = self.split_speeches_df(by='speaker')
-            self.speaker_saved_models = []
-            new = False
-            count = 0
-            skipped = 0
-            vocab_skipped = 0
-            for row in self.split_speeches_by_mp.itertuples():
-                model_savepath = os.path.join(outdir, f'speaker_{row.df_name}.model')
-
-                # if the file exists and we are not overwriting, record that is is there.
-                if (os.path.isfile(model_savepath) and not overwrite):
-                    self.logger.info(f'{os.path.split(model_savepath)[-1]} found and not overwriting...')
-                    self.speaker_saved_models.append(model_savepath)
-
-                # if the file does not exist and we are not checking if it should, just continue
-                elif (not os.path.isfile(model_savepath)) and skip_model_check:
-                    self.logger.info(f'{os.path.split(model_savepath)[-1]} not found but skipping model check...')
-                    continue
-
-                # otherwise, generate model
+                if os.path.isfile(savepath_t1) and not overwrite:
+                    self.model1 = gensim.models.Word2Vec.load(savepath_t1)
+                    self.model2 = gensim.models.Word2Vec.load(savepath_t2)
+                    self.logger.info('MODELLING - whole models loaded in ')
                 else:
-                    try:
-                        count += 1
+                    # create model for time 1
+                    self.logger.info('MODELLING - creating model for time 1')
+                    self.model1 = gensim.models.Word2Vec(
+                            self.data_t1['tokenized'],
+                            min_count=1,
+                            vector_size=300,
+                            window = 5,
+                            sg = 1
+                        )
+                    self.logger.info('MODELLING - creating model for time 2')
+                    self.model2 = gensim.models.Word2Vec(
+                            self.data_t2['tokenized'],
+                            min_count=1,
+                            vector_size=300,
+                            window = 5,
+                            sg = 1
+                        )
+
+                    _ = self._smart_procrustes_align_gensim(self.model1, self.model2)
+
+                    common_vocab = len(set(self.model1.wv.index_to_key).intersection(set(self.model2.wv.index_to_key)))
+                    self.logger.info('MODELLING - WHOLE - ALIGNMENT COMPLETE')
+                    if common_vocab == 0:
+                        self.logger.error("MODELLING - WHOLE - NO COMMON VOCAB LEFT OVER")
+
+                    self.model1.save(savepath_t1)
+                    self.model2.save(savepath_t2)
+
+            if self.model_type in ['speaker', 'speaker_plus']:
+
+                """
+                With the speaker model, we train word embeddings for each MP and split into two time groups as well, t1 and t2.
+                """
+
+                self.split_speeches_by_mp = self.split_speeches_df(by='speaker')
+                self.speaker_saved_models = []
+                new = False
+                count = 0
+                skipped = 0
+                vocab_skipped = 0
+                for row in self.split_speeches_by_mp.itertuples():
+                    model_savepath = os.path.join(outdir, f'speaker_{row.df_name}.model')
+
+                    # if the file exists and we are not overwriting, record that is is there.
+                    if (os.path.isfile(model_savepath) and not overwrite):
+                        self.logger.info(f'{os.path.split(model_savepath)[-1]} found and not overwriting...')
+                        self.speaker_saved_models.append(model_savepath)
+
+                    # if the file does not exist and we are not checking if it should, just continue
+                    elif (not os.path.isfile(model_savepath)) and skip_model_check:
+                        self.logger.info(f'{os.path.split(model_savepath)[-1]} not found but skipping model check...')
+                        continue
+
+                    # otherwise, generate model
+                    else:
+                        try:
+                            count += 1
+                            model = gensim.models.Word2Vec(
+                                row.tokens,
+                                min_count=1,
+                                vector_size=300,
+                                window = 5,
+                                sg = 1
+                            )
+                            vocab_of_interest = set(self.change)
+                            req_size = len(vocab_of_interest)
+                            overlap = len(vocab_of_interest.intersection(set(model.wv.index_to_key)))/req_size
+                            if overlap<overlap_req:
+                                vocab_skipped += 1
+                                self.logger.info(f'MODELLING - Skipped {row.df_name} due to not enough overlap with words of interest. Overlap: {overlap:.2f}')
+                                continue
+                            # Skip if below minimum size
+                            if len(model.wv.index_to_key) < min_vocab_size:
+                                skipped += 1
+                                self.logger.info(f'MODELLING - SKIPPED {row.df_name} due to insufficient vocab size. Vocab size: {len(model.wv.index_to_key)}')
+                                continue
+                            if not new:
+                                new = True
+                                self.logger.info('New set to True')
+                            model.save(model_savepath)
+                            if count % 100 == 0:
+                                self.logger.info(f'MODELLING - {count}/{len(self.split_speeches_by_mp)} = {100*count/len(self.split_speeches_by_mp):.2f}% complete')
+                            # self.logger.info(f'MODELLING - SPEAKER - Saved model to {model_savepath}.')
+                            self.speaker_saved_models.append(model_savepath)
+                        except Exception as e:
+                            self.logger.error(e)
+
+                self.logger.info(f"num speaker models: {len(self.speaker_saved_models)}")
+                if count > 0:
+                    self.logger.info(f"MODELLING - SPEAKER - {skipped} out of {count}  models skipped due to vocab size")
+                    self.logger.info(f"MODELLING - SPEAKER - {vocab_skipped} out of {count} models skipped due to insufficient overlap with vocab of interest")
+                    self.logger.info(f"Total skipped: {vocab_skipped+skipped} out of {count} = {100*(vocab_skipped+skipped)/count:.2f}%")
+                else:
+                    self.logger.info(f"No models made or skipped")
+
+                if new and align:
+                    self.logger.info('MODELLING - SPEAKER - New models detected. Loading back in and running alignment')
+                    for ind, model_path in enumerate(self.speaker_saved_models[:-1]):
+
+                        model_current = gensim.models.Word2Vec.load(model_path)
+                        check = np.array(model_current.wv[model_current.wv.index_to_key[0]])
+                        model_next    = gensim.models.Word2Vec.load(self.speaker_saved_models[ind+1])
+
+                        _ = self._smart_procrustes_align_gensim(model_current, model_next)
+
+                        current_common_vocab_size = len(set(model_current.wv.index_to_key).intersection(set(model_next.wv.index_to_key)))
+                        self.logger.info(f"MODELLING - SPEAKER - ALIGNMENT - CURRENT COMMON VOCAB IS {current_common_vocab_size} after alignment at index {ind}, model: {model_path}")
+
+                        if np.sum(check-model_current.wv[model_current.wv.index_to_key[0]])>0:
+                            self.logger.warning('MODELLING - SPEAKER - PLEASE CHECK ALIGNMENT PROCEDURE')
+                            return None
+
+                        model_current.save(model_path)
+                        model_next.save(self.speaker_saved_models[ind+1])
+                    self.logger.info('MODELLING - SPEAKER - ALIGNMENT COMPLETE')
+                    if current_common_vocab_size == 0:
+                        self.logger.error("MODELLING - SPEAKER - NO COMMON VOCAB LEFT OVER")
+                else:
+                    self.logger.info('MODELLING - SPEAKER - NO NEW MODELS GENERATED -> NO ALIGNMENT NECESSARY')
+
+            if self.model_type == 'retrofit':
+                # create aligned models for retrofit.
+
+                self.logger.info('MODELLING - RETROFIT')
+                self.retrofit_model_paths = []
+                new = False
+                count = 0
+                skipped = 0
+                vocab_skipped = 0
+                for row in self.retrofit_prep_df.itertuples(): 
+
+                    savepath = os.path.join(outdir, f"{row.df_name}.model")
+                    if (os.path.isfile(savepath) and overwrite) or (not os.path.isfile(savepath) and not skip_model_check):
                         model = gensim.models.Word2Vec(
                             row.tokens,
                             min_count=1,
@@ -501,147 +610,340 @@ class ParliamentDataHandler(object):
                             window = 5,
                             sg = 1
                         )
+
+                        count += 1
+                        # Skip if not containing correct vocab
                         vocab_of_interest = set(self.change)
                         req_size = len(vocab_of_interest)
                         overlap = len(vocab_of_interest.intersection(set(model.wv.index_to_key)))/req_size
                         if overlap<overlap_req:
                             vocab_skipped += 1
-                            self.logger.info(f'MODELLING - Skipped {row.df_name} due to not enough overlap with words of interest. Overlap: {overlap:.2f}')
+                            self.logger.debug(f'Modelling: Skipped {row.df_name} due to not enough overlap with words of interest. Overlap: {overlap:.2f}')
                             continue
                         # Skip if below minimum size
                         if len(model.wv.index_to_key) < min_vocab_size:
                             skipped += 1
-                            self.logger.info(f'MODELLING - SKIPPED {row.df_name} due to insufficient vocab size. Vocab size: {len(model.wv.index_to_key)}')
+                            self.logger.debug(f'MODELLING - SKIPPED {row.df_name} due to insufficient vocab size. Vocab size: {len(model.wv.index_to_key)}')
                             continue
+
                         if not new:
                             new = True
                             self.logger.info('New set to True')
-                        model.save(model_savepath)
+
                         if count % 100 == 0:
-                            self.logger.info(f'MODELLING - {count}/{len(self.split_speeches_by_mp)} = {100*count/len(self.split_speeches_by_mp):.2f}% complete')
-                        # self.logger.info(f'MODELLING - SPEAKER - Saved model to {model_savepath}.')
-                        self.speaker_saved_models.append(model_savepath)
-                    except Exception as e:
-                        self.logger.error(e)
+                            self.logger.info(f'MODELLING - {count}/{len(self.retrofit_prep_df)} = {100*count/len(self.retrofit_prep_df):.2f}% complete')
 
-            self.logger.info(f"num speaker models: {len(self.speaker_saved_models)}")
-            if count > 0:
-                self.logger.info(f"MODELLING - SPEAKER - {skipped} out of {count}  models skipped due to vocab size")
-                self.logger.info(f"MODELLING - SPEAKER - {vocab_skipped} out of {count} models skipped due to insufficient overlap with vocab of interest")
+                        # N.B. only append savepath if retrofit model satisfies criterion.
+                        self.retrofit_model_paths.append(savepath)
+
+                        # Previous: Also saving model in a dict and exporting
+                        # Updated 22/10/22: save as you go along for RAM reasons. Also just better
+
+                        model.save(savepath)
+
+                        # dictOfModels[dframe] = model
+                        #model.save(os.path.join(models_folder, modelName))
+                    elif os.path.isfile(savepath):
+                        self.retrofit_model_paths.append(savepath)
+                        count += 1
+
+                self.logger.info(f"MODELLING - RETROFIT - {skipped} out of {count}  models skipped due to vocab size")
+                self.logger.info(f"MODELLING - RETROFIT - {vocab_skipped} out of {count} models skipped due to insufficient overlap with vocab of interest")
                 self.logger.info(f"Total skipped: {vocab_skipped+skipped} out of {count} = {100*(vocab_skipped+skipped)/count:.2f}%")
-            else:
-                self.logger.info(f"No models made or skipped")
 
-            if new and align:
-                self.logger.info('MODELLING - SPEAKER - New models detected. Loading back in and running alignment')
-                for ind, model_path in enumerate(self.speaker_saved_models[:-1]):
+                if new and align:
+                    self.logger.info('MODELLING - RETROFIT - New models detected. Loading back in and running alignment')
+                    for ind, model_path in enumerate(self.retrofit_model_paths[:-1]):
 
-                    model_current = gensim.models.Word2Vec.load(model_path)
-                    check = np.array(model_current.wv[model_current.wv.index_to_key[0]])
-                    model_next    = gensim.models.Word2Vec.load(self.speaker_saved_models[ind+1])
+                        model_current = gensim.models.Word2Vec.load(model_path)
+                        check = np.array(model_current.wv[model_current.wv.index_to_key[0]])
+                        model_next    = gensim.models.Word2Vec.load(self.retrofit_model_paths[ind+1])
 
-                    _ = self._smart_procrustes_align_gensim(model_current, model_next)
+                        _ = self._smart_procrustes_align_gensim(model_current, model_next)
 
-                    current_common_vocab_size = len(set(model_current.wv.index_to_key).intersection(set(model_next.wv.index_to_key)))
-                    self.logger.info(f"MODELLING - SPEAKER - ALIGNMENT - CURRENT COMMON VOCAB IS {current_common_vocab_size} after alignment at index {ind}, model: {model_path}")
+                        current_common_vocab_size = len(set(model_current.wv.index_to_key).intersection(set(model_next.wv.index_to_key)))
+                        self.logger.debug(f"MODELLING - ALIGNMENT - CURRENT COMMON VOCAB IS {current_common_vocab_size} after alignment at index {ind}, model: {model_path}")
 
-                    if np.sum(check-model_current.wv[model_current.wv.index_to_key[0]])>0:
-                        self.logger.warning('MODELLING - SPEAKER - PLEASE CHECK ALIGNMENT PROCEDURE')
-                        return None
+                        if np.sum(check-model_current.wv[model_current.wv.index_to_key[0]])>0:
+                            self.logger.warning('MODELLING - RETROFIT - PLEASE CHECK ALIGNMENT PROCEDURE')
+                            return None
 
-                    model_current.save(model_path)
-                    model_next.save(self.speaker_saved_models[ind+1])
-                self.logger.info('MODELLING - SPEAKER - ALIGNMENT COMPLETE')
-                if current_common_vocab_size == 0:
-                    self.logger.error("MODELLING - SPEAKER - NO COMMON VOCAB LEFT OVER")
-            else:
-                self.logger.info('MODELLING - SPEAKER - NO NEW MODELS GENERATED -> NO ALIGNMENT NECESSARY')
+                        model_current.save(model_path)
+                        model_next.save(self.retrofit_model_paths[ind+1])
+                    self.logger.info('MODELLING - RETROFIT - ALIGNMENT COMPLETE')
+                    if current_common_vocab_size == 0:
+                        self.logger.error("MODELLING - RETROFIT - NO COMMON VOCAB LEFT OVER")
+                else:
+                    self.logger.info('MODELLING - RETROFIT - NO NEW MODELS GENERATED -> NO ALIGNMENT NECESSARY')
 
-        if self.model_type == 'retrofit':
-            # create aligned models for retrofit.
 
-            self.logger.info('MODELLING - RETROFIT')
-            self.retrofit_model_paths = []
-            new = False
-            count = 0
-            skipped = 0
-            vocab_skipped = 0
-            for row in self.retrofit_prep_df.itertuples(): 
+        elif self.embedding=='sentence':
+            self.logger.info('MODELLING - SENTENCE EMBEDDINGS')
 
-                savepath = os.path.join(outdir, f"{row.df_name}.model")
-                if (os.path.isfile(savepath) and overwrite) or (not os.path.isfile(savepath) and not skip_model_check):
-                    model = gensim.models.Word2Vec(
-                        row.tokens,
-                        min_count=1,
-                        vector_size=300,
-                        window = 5,
-                        sg = 1
-                    )
+            if self.model_type == 'whole':
+                self.logger.info('MODELLING - WHOLE')
 
-                    count += 1
-                    # Skip if not containing correct vocab
-                    vocab_of_interest = set(self.change)
-                    req_size = len(vocab_of_interest)
-                    overlap = len(vocab_of_interest.intersection(set(model.wv.index_to_key)))/req_size
-                    if overlap<overlap_req:
-                        vocab_skipped += 1
-                        self.logger.debug(f'Modelling: Skipped {row.df_name} due to not enough overlap with words of interest. Overlap: {overlap:.2f}')
+                savepath_t1 = os.path.join(outdir, 'whole_model_t1.model.sbert')
+                savepath_t2 = os.path.join(outdir, 'whole_model_t2.model.sbert')
+
+                if os.path.isfile(savepath_t1) and not overwrite:
+                    self.model1 = gensim.models.Word2Vec.load(savepath_t1)
+                    self.model2 = gensim.models.Word2Vec.load(savepath_t2)
+                    self.logger.info('MODELLING - whole models loaded in ')
+                else:
+                    # create model for time 1
+                    self.logger.info('MODELLING - creating model for time 1')
+
+                    self.model = SentenceTransformer('all-MiniLM-L6-v2')
+
+                    # Get the sentence embedding for all sentences
+                    d = self.data_t1
+                    embeddings1 = d.sentences.apply(self.model.encode) 
+                    
+                    all_words_t1 = set().union(*d["tokenized"])
+                    
+                    # Build dictionary of words-to-idx-of-embeddings-of-where-they-appear
+                    words2embeddingidx = { w:[] for w in all_words_t1 }
+                    for (idx_row, row), embeddings in zip(d.iterrows(), embeddings1):
+                        for idx_sentence, tokenized_sentence in enumerate(row['tokenized_sentences']):
+                            for word in tokenized_sentence:
+                                words2embeddingidx[word].append( (idx_row, idx_sentence)) 
+
+                    # Use that dictionary to get the sentence embedding for each context where the word has been used (per time, per speaker, etc)
+                    words2embeddings1 = { word:[ embeddings1.loc[idx_row][idx_sentence] for (idx_row,idx_sentence) in idxs]
+                                                                                         for word,idxs in words2embeddingidx.items() }
+
+                    # Take the centroid of those sentence embeddings, make a dictionary of words and their centroids
+                    words2centroids1  = { word:np.mean(embeddings,axis=0) for word,embeddings in words2embeddings1.items() }
+
+                    # create model for time 2
+                    self.logger.info('MODELLING - creating model for time 2')
+
+                    self.model = SentenceTransformer('all-MiniLM-L6-v2')
+
+                    # Get the sentence embedding for all sentences
+                    d = self.data_t2
+                    embeddings2 = d.sentences.apply(self.model.encode) 
+                    
+                    all_words_t2 = set().union(*d["tokenized"])
+
+                    
+                    # Build dictionary of words-to-idx-of-embeddings-of-where-they-appear
+                    words2embeddingidx = { w:[] for w in all_words_t2 }
+                    for (idx_row, row), embeddings in zip(d.iterrows(), embeddings1):
+                        for idx_sentence, tokenized_sentence in enumerate(row['tokenized_sentences']):
+                            for word in tokenized_sentence:
+                                words2embeddingidx[word].append( (idx_row, idx_sentence)) 
+
+                    # Use that dictionary to get the sentence embedding for each context where the word has been used (per time, per speaker, etc)
+                    words2embeddings2 = { word:[ embeddings2.loc[idx_row][idx_sentence] for (idx_row,idx_sentence) in idxs]
+                                                                                         for word,idxs in words2embeddingidx.items() }
+
+                    # Take the centroid of those sentence embeddings, make a dictionary of words and their centroids
+                    words2centroids2  = { word:np.mean(embeddings,axis=0) for word,embeddings in words2embeddings2.items() }
+
+                    # Since they are pre-trained, model1 and model2 are already aligned. We just need to make sure they share the same vocabulary.
+                    common_vocab = all_words_t1.intersection(all_words_t2)
+                    self.logger.info('MODELLING - WHOLE - ALIGNMENT COMPLETE')
+                    if len(common_vocab) == 0:
+                        self.logger.error("MODELLING - WHOLE - NO COMMON VOCAB LEFT OVER")
+
+                    # Using the KeyedVectors (https://radimrehurek.com/gensim_3.8.3/models/word2vec.html), build word2vec models from those vectors
+                    from gensim.models import KeyedVectors
+                    words    = common_vocab
+
+                    vectors1 = np.array([ words2centroids1[word] for word in words ])
+                    model1   = KeyedVectors(vectors1.shape[1])
+                    model1.add_vectors(words, vectors1)
+
+                    vectors2 = np.array([ words2centroids2[word] for word in words ])
+                    model2   = KeyedVectors(vectors2.shape[1])
+                    model2.add_vectors(words, vectors2)        
+
+                    self.model1.save(savepath_t1)
+                    self.logger.info('MODELLING - WHOLE - MODEL 1 SAVED')
+                    self.model2.save(savepath_t2)
+                    self.logger.info('MODELLING - WHOLE - MODEL 2 SAVED')
+
+
+            if self.model_type in ['speaker', 'speaker_plus']:
+
+                """
+                With the speaker model, we train word embeddings for each MP and split into two time groups as well, t1 and t2.
+                """
+
+                self.split_speeches_by_mp = self.split_speeches_df(by='speaker')
+                self.speaker_saved_models = []
+                new = False
+                count = 0
+                skipped = 0
+                vocab_skipped = 0
+                for row in self.split_speeches_by_mp.itertuples():
+                    model_savepath = os.path.join(outdir, f'speaker_{row.df_name}.model.sbert')
+
+                    # if the file exists and we are not overwriting, record that is is there.
+                    if (os.path.isfile(model_savepath) and not overwrite):
+                        self.logger.info(f'{os.path.split(model_savepath)[-1]} found and not overwriting...')
+                        self.speaker_saved_models.append(model_savepath)
+
+                    # if the file does not exist and we are not checking if it should, just continue
+                    elif (not os.path.isfile(model_savepath)) and skip_model_check:
+                        self.logger.info(f'{os.path.split(model_savepath)[-1]} not found but skipping model check...')
                         continue
-                    # Skip if below minimum size
-                    if len(model.wv.index_to_key) < min_vocab_size:
-                        skipped += 1
-                        self.logger.debug(f'MODELLING - SKIPPED {row.df_name} due to insufficient vocab size. Vocab size: {len(model.wv.index_to_key)}')
-                        continue
 
-                    if not new:
-                        new = True
-                        self.logger.info('New set to True')
+                    # otherwise, generate model
+                    else:
+                        try:
+                            count += 1
+                            model = gensim.models.Word2Vec(
+                                row.tokens,
+                                min_count=1,
+                                vector_size=300,
+                                window = 5,
+                                sg = 1
+                            )
+                            vocab_of_interest = set(self.change)
+                            req_size = len(vocab_of_interest)
+                            overlap = len(vocab_of_interest.intersection(set(model.wv.index_to_key)))/req_size
+                            if overlap<overlap_req:
+                                vocab_skipped += 1
+                                self.logger.info(f'MODELLING - Skipped {row.df_name} due to not enough overlap with words of interest. Overlap: {overlap:.2f}')
+                                continue
+                            # Skip if below minimum size
+                            if len(model.wv.index_to_key) < min_vocab_size:
+                                skipped += 1
+                                self.logger.info(f'MODELLING - SKIPPED {row.df_name} due to insufficient vocab size. Vocab size: {len(model.wv.index_to_key)}')
+                                continue
+                            if not new:
+                                new = True
+                                self.logger.info('New set to True')
+                            model.save(model_savepath)
+                            if count % 100 == 0:
+                                self.logger.info(f'MODELLING - {count}/{len(self.split_speeches_by_mp)} = {100*count/len(self.split_speeches_by_mp):.2f}% complete')
+                            # self.logger.info(f'MODELLING - SPEAKER - Saved model to {model_savepath}.')
+                            self.speaker_saved_models.append(model_savepath)
+                        except Exception as e:
+                            self.logger.error(e)
 
-                    if count % 100 == 0:
-                        self.logger.info(f'MODELLING - {count}/{len(self.retrofit_prep_df)} = {100*count/len(self.retrofit_prep_df):.2f}% complete')
+                self.logger.info(f"num speaker models: {len(self.speaker_saved_models)}")
+                if count > 0:
+                    self.logger.info(f"MODELLING - SPEAKER - {skipped} out of {count}  models skipped due to vocab size")
+                    self.logger.info(f"MODELLING - SPEAKER - {vocab_skipped} out of {count} models skipped due to insufficient overlap with vocab of interest")
+                    self.logger.info(f"Total skipped: {vocab_skipped+skipped} out of {count} = {100*(vocab_skipped+skipped)/count:.2f}%")
+                else:
+                    self.logger.info(f"No models made or skipped")
 
-                    # N.B. only append savepath if retrofit model satisfies criterion.
-                    self.retrofit_model_paths.append(savepath)
+                if new and align:
+                    self.logger.info('MODELLING - SPEAKER - New models detected. Loading back in and running alignment')
+                    for ind, model_path in enumerate(self.speaker_saved_models[:-1]):
 
-                    # Previous: Also saving model in a dict and exporting
-                    # Updated 22/10/22: save as you go along for RAM reasons. Also just better
+                        model_current = gensim.models.Word2Vec.load(model_path)
+                        check = np.array(model_current.wv[model_current.wv.index_to_key[0]])
+                        model_next    = gensim.models.Word2Vec.load(self.speaker_saved_models[ind+1])
 
-                    model.save(savepath)
+                        _ = self._smart_procrustes_align_gensim(model_current, model_next)
 
-                    # dictOfModels[dframe] = model
-                    #model.save(os.path.join(models_folder, modelName))
-                elif os.path.isfile(savepath):
-                    self.retrofit_model_paths.append(savepath)
-                    count += 1
+                        current_common_vocab_size = len(set(model_current.wv.index_to_key).intersection(set(model_next.wv.index_to_key)))
+                        self.logger.info(f"MODELLING - SPEAKER - ALIGNMENT - CURRENT COMMON VOCAB IS {current_common_vocab_size} after alignment at index {ind}, model: {model_path}")
 
-            self.logger.info(f"MODELLING - RETROFIT - {skipped} out of {count}  models skipped due to vocab size")
-            self.logger.info(f"MODELLING - RETROFIT - {vocab_skipped} out of {count} models skipped due to insufficient overlap with vocab of interest")
-            self.logger.info(f"Total skipped: {vocab_skipped+skipped} out of {count} = {100*(vocab_skipped+skipped)/count:.2f}%")
+                        if np.sum(check-model_current.wv[model_current.wv.index_to_key[0]])>0:
+                            self.logger.warning('MODELLING - SPEAKER - PLEASE CHECK ALIGNMENT PROCEDURE')
+                            return None
 
-            if new and align:
-                self.logger.info('MODELLING - RETROFIT - New models detected. Loading back in and running alignment')
-                for ind, model_path in enumerate(self.retrofit_model_paths[:-1]):
+                        model_current.save(model_path)
+                        model_next.save(self.speaker_saved_models[ind+1])
+                    self.logger.info('MODELLING - SPEAKER - ALIGNMENT COMPLETE')
+                    if current_common_vocab_size == 0:
+                        self.logger.error("MODELLING - SPEAKER - NO COMMON VOCAB LEFT OVER")
+                else:
+                    self.logger.info('MODELLING - SPEAKER - NO NEW MODELS GENERATED -> NO ALIGNMENT NECESSARY')
 
-                    model_current = gensim.models.Word2Vec.load(model_path)
-                    check = np.array(model_current.wv[model_current.wv.index_to_key[0]])
-                    model_next    = gensim.models.Word2Vec.load(self.retrofit_model_paths[ind+1])
+            if self.model_type == 'retrofit':
+                # create aligned models for retrofit.
 
-                    _ = self._smart_procrustes_align_gensim(model_current, model_next)
+                self.logger.info('MODELLING - RETROFIT')
+                self.retrofit_model_paths = []
+                new = False
+                count = 0
+                skipped = 0
+                vocab_skipped = 0
+                for row in self.retrofit_prep_df.itertuples(): 
 
-                    current_common_vocab_size = len(set(model_current.wv.index_to_key).intersection(set(model_next.wv.index_to_key)))
-                    self.logger.debug(f"MODELLING - ALIGNMENT - CURRENT COMMON VOCAB IS {current_common_vocab_size} after alignment at index {ind}, model: {model_path}")
+                    savepath = os.path.join(outdir, f"{row.df_name}.model.sbert")
+                    if (os.path.isfile(savepath) and overwrite) or (not os.path.isfile(savepath) and not skip_model_check):
+                        model = gensim.models.Word2Vec(
+                            row.tokens,
+                            min_count=1,
+                            vector_size=300,
+                            window = 5,
+                            sg = 1
+                        )
 
-                    if np.sum(check-model_current.wv[model_current.wv.index_to_key[0]])>0:
-                        self.logger.warning('MODELLING - RETROFIT - PLEASE CHECK ALIGNMENT PROCEDURE')
-                        return None
+                        count += 1
+                        # Skip if not containing correct vocab
+                        vocab_of_interest = set(self.change)
+                        req_size = len(vocab_of_interest)
+                        overlap = len(vocab_of_interest.intersection(set(model.wv.index_to_key)))/req_size
+                        if overlap<overlap_req:
+                            vocab_skipped += 1
+                            self.logger.debug(f'Modelling: Skipped {row.df_name} due to not enough overlap with words of interest. Overlap: {overlap:.2f}')
+                            continue
+                        # Skip if below minimum size
+                        if len(model.wv.index_to_key) < min_vocab_size:
+                            skipped += 1
+                            self.logger.debug(f'MODELLING - SKIPPED {row.df_name} due to insufficient vocab size. Vocab size: {len(model.wv.index_to_key)}')
+                            continue
 
-                    model_current.save(model_path)
-                    model_next.save(self.retrofit_model_paths[ind+1])
-                self.logger.info('MODELLING - RETROFIT - ALIGNMENT COMPLETE')
-                if current_common_vocab_size == 0:
-                    self.logger.error("MODELLING - RETROFIT - NO COMMON VOCAB LEFT OVER")
-            else:
-                self.logger.info('MODELLING - RETROFIT - NO NEW MODELS GENERATED -> NO ALIGNMENT NECESSARY')
+                        if not new:
+                            new = True
+                            self.logger.info('New set to True')
+
+                        if count % 100 == 0:
+                            self.logger.info(f'MODELLING - {count}/{len(self.retrofit_prep_df)} = {100*count/len(self.retrofit_prep_df):.2f}% complete')
+
+                        # N.B. only append savepath if retrofit model satisfies criterion.
+                        self.retrofit_model_paths.append(savepath)
+
+                        # Previous: Also saving model in a dict and exporting
+                        # Updated 22/10/22: save as you go along for RAM reasons. Also just better
+
+                        model.save(savepath)
+
+                        # dictOfModels[dframe] = model
+                        #model.save(os.path.join(models_folder, modelName))
+                    elif os.path.isfile(savepath):
+                        self.retrofit_model_paths.append(savepath)
+                        count += 1
+
+                self.logger.info(f"MODELLING - RETROFIT - {skipped} out of {count}  models skipped due to vocab size")
+                self.logger.info(f"MODELLING - RETROFIT - {vocab_skipped} out of {count} models skipped due to insufficient overlap with vocab of interest")
+                self.logger.info(f"Total skipped: {vocab_skipped+skipped} out of {count} = {100*(vocab_skipped+skipped)/count:.2f}%")
+
+                if new and align:
+                    self.logger.info('MODELLING - RETROFIT - New models detected. Loading back in and running alignment')
+                    for ind, model_path in enumerate(self.retrofit_model_paths[:-1]):
+
+                        model_current = gensim.models.Word2Vec.load(model_path)
+                        check = np.array(model_current.wv[model_current.wv.index_to_key[0]])
+                        model_next    = gensim.models.Word2Vec.load(self.retrofit_model_paths[ind+1])
+
+                        _ = self._smart_procrustes_align_gensim(model_current, model_next)
+
+                        current_common_vocab_size = len(set(model_current.wv.index_to_key).intersection(set(model_next.wv.index_to_key)))
+                        self.logger.debug(f"MODELLING - ALIGNMENT - CURRENT COMMON VOCAB IS {current_common_vocab_size} after alignment at index {ind}, model: {model_path}")
+
+                        if np.sum(check-model_current.wv[model_current.wv.index_to_key[0]])>0:
+                            self.logger.warning('MODELLING - RETROFIT - PLEASE CHECK ALIGNMENT PROCEDURE')
+                            return None
+
+                        model_current.save(model_path)
+                        model_next.save(self.retrofit_model_paths[ind+1])
+                    self.logger.info('MODELLING - RETROFIT - ALIGNMENT COMPLETE')
+                    if current_common_vocab_size == 0:
+                        self.logger.error("MODELLING - RETROFIT - NO COMMON VOCAB LEFT OVER")
+                else:
+                    self.logger.info('MODELLING - RETROFIT - NO NEW MODELS GENERATED -> NO ALIGNMENT NECESSARY')
+
 
     def cossim(self, word):
         sc = 1-spatial.distance.cosine(self.model1.wv[word], self.model2.wv[word])
@@ -854,6 +1156,99 @@ class ParliamentDataHandler(object):
         self.cosine_similarity_df = pd.DataFrame.from_records(word_vals)
 
     def process_speaker(self,
+        model_output_dir,
+        min_vocab_size=10000,
+        overwrite=False
+    ):
+        """Function to load in speaker models, filter by vocab size if necessary.
+        """
+        # collect keys of models that are over the threshold
+        self.valid_split_speeches_by_mp = []
+        first = True
+        self.dictOfModels = {
+            't1': [],
+            't2': []
+        }
+        total_words = set()
+        for model_savepath in self.speaker_saved_models:
+            model = gensim.models.Word2Vec.load(model_savepath)
+            # if len(model.wv.index_to_key) < min_vocab_size:
+                # continue
+            if 't1' in model_savepath:
+                self.dictOfModels['t1'].append(model)
+            else:
+                self.dictOfModels['t2'].append(model)
+            # else:
+            self.valid_split_speeches_by_mp.append(model_savepath)
+            if first:
+                total_words = set(model.wv.index_to_key)
+                # print(total_words)
+                first = False
+            else:
+                total_words.update(model.wv.index_to_key)
+        self.logger.info(f'POSTPROCESS - SPEAKER - Total words: {len(total_words)}')
+
+        # print, for informational purposes, the number of models that are over the threshold
+        self.logger.info(f'POSTPROCESS - SPEAKER - Number of valid models: {len(self.valid_split_speeches_by_mp)}')
+
+        avg_vec_savepath_t1 = os.path.join(model_output_dir,'average_vecs_t1.bin')
+        avg_vec_savepath_t2 = os.path.join(model_output_dir,'average_vecs_t2.bin')
+
+        # if ((os.path.isfile(avg_vec_savepath_t1) or os.path.isfile(avg_vec_savepath_t2)) and overwrite) or not (os.path.isfile(avg_vec_savepath_t1) and os.path.isfile(avg_vec_savepath_t2)):
+        average_vecs = {
+            't1': {},
+            't2': {}
+        }
+        self.cosine_similarity_df = pd.DataFrame(columns = (
+            'Word',
+            'Frequency_t1',
+            'Frequency_t2',
+            'Cosine_similarity'
+        ))
+        self.logger.info(f'POSTPROCESS - SPEAKER - CALCULATING AVERAGE VECTORS')
+        for word in total_words:
+            if self.verbosity > 0:
+                self.logger.info(f'POSTPROCESS - SPEAKER - getting average vector for {word}')
+            avgVecT1, freq_t1 = self.computeAvgVec(word, time='t1')
+            avgVecT2, freq_t2 = self.computeAvgVec(word, time='t2')
+
+            if(np.sum(avgVecT1)==0 or np.sum(avgVecT2)==0):
+                if self.verbosity > 0:
+                    print(str(word) + ' Word not found')
+                continue
+            else:
+                # build results of average vec to save.
+                average_vecs['t1'][word] = avgVecT1
+                average_vecs['t2'][word] = avgVecT2
+
+                # Cos similarity between averages
+                cosSimilarity = self.cosine_similarity(avgVecT1, avgVecT2)
+                insert_row = {
+                    "Word": word,
+                    "Frequency_t1": freq_t1,
+                    "Frequency_t2": freq_t2,
+                    "Cosine_similarity": cosSimilarity
+                }
+
+                self.cosine_similarity_df = pd.concat([self.cosine_similarity_df, pd.DataFrame([insert_row])], axis=0)
+
+        self._save_word2vec_format(
+            fname = avg_vec_savepath_t1,
+            vocab = average_vecs['t1'],
+            vector_size = average_vecs['t1'][list(average_vecs['t1'].keys())[0]].shape[0]
+        )
+        self.logger.info(f'POSTPROCESS - SPEAKER - Average vectors for t1 saved to {avg_vec_savepath_t1}')
+        self._save_word2vec_format(
+            fname = avg_vec_savepath_t2,
+            vocab = average_vecs['t2'],
+            vector_size = average_vecs['t2'][list(average_vecs['t2'].keys())[0]].shape[0]
+        )
+        self.logger.info(f'POSTPROCESS - SPEAKER - Average vectors for t2 saved to {avg_vec_savepath_t2}')
+
+        self.model1 = gensim.models.KeyedVectors.load_word2vec_format(avg_vec_savepath_t1, binary=True)
+        self.model2 = gensim.models.KeyedVectors.load_word2vec_format(avg_vec_savepath_t2, binary=True)
+
+    def process_BERT_speaker(self,
         model_output_dir,
         min_vocab_size=10000,
         overwrite=False
@@ -1719,6 +2114,7 @@ class ParliamentDataHandler(object):
 @click.option('--outdir', required=True, help='Output file directory')
 @click.option('--model_output_dir', required=True, help='Outputs after model generation, such as average vectors')
 @click.option('--model', required=False, default='whole')
+@click.option('--embedding', required=False, default='word')
 @click.option('--align/--no-align', default=True)
 @click.option('--overlap_req', required=False, default=0.75)
 @click.option('--tokenized_outdir', required=False)
@@ -1748,6 +2144,7 @@ def main(
         retrofit_outdir,
         retrofit_factor,
         model,
+        embedding,
         align,
         overlap_req,
         undersample,
@@ -1827,6 +2224,7 @@ def main(
     logger.info(f'PARAMS - tokenized_outdir - {tokenized_outdir}')
     logger.info(f'PARAMS - retrofit_outdir - {retrofit_outdir}')
     logger.info(f'PARAMS - model - {model}')
+    logger.info(f'PARAMS - embedding - {embedding}')
 
     # process change lists
     change_list = []
@@ -1845,6 +2243,9 @@ def main(
     handler.split_by_date(date_to_split, split_range)
     logger.info('SPLITTING COMPLETE.')
 
+    # Garbage collection
+    gc.collect()
+
     # unified
     handler.preprocess(
         change = change_list,
@@ -1854,14 +2255,23 @@ def main(
         retrofit_outdir=retrofit_outdir,
         overwrite=overwrite_preprocess
     )
+
+    # Garbage collection
+    gc.collect()
+
     handler.model(
         outdir,
+        embedding = embedding, 
         overwrite=overwrite_model,
         skip_model_check = skip_model_check,
         min_vocab_size=min_vocab_size,
         overlap_req=overlap_req,
         align=align
     )
+
+    # Garbage collection
+    gc.collect()
+
     handler.postprocess(
         model_output_dir,
         workers = 10,

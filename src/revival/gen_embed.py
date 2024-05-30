@@ -46,14 +46,14 @@ def main():
 
     tokenizer = AutoTokenizer.from_pretrained(os.getenv('MODEL'))
     model = AutoModel.from_pretrained(os.getenv('MODEL'))
-    logger.info(f'Loaded in model: {os.getenv('MODEL')}')
+    logger.info(f"Loaded in model: {os.getenv('MODEL')}")
 
     # Example data
     data = pd.read_parquet(os.getenv('DATA'))
     logger.info(f"Loaded in data from: {os.getenv('DATA')}")
 
     # specify the specific ids in here
-    text_query = data.query(f"speaker == '{os.getenv("SPEAKER")}'").sort_index()
+    text_query = data.query(f'speaker == {os.getenv("SPEAKER")}').sort_index()
     # text_data = text_query['text'].to_list()
 
     # text_data = ["Your text data here..."]

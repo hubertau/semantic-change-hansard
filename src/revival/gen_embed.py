@@ -69,7 +69,7 @@ def main():
 
     # Prepare storage
     hdf5_file = Path(os.getenv('SAVEFOLDER'))/f"{os.getenv('SPEAKER')}_embeddings.h5"
-    assert os.isdir(Path(os.getenv('SAVEFOLDER')))
+    assert os.path.isdir(Path(os.getenv('SAVEFOLDER')))
     logger.info(f'Embeddings to be saved to: {hdf5_file}')
 
     with h5py.File(hdf5_file, 'w') as f:

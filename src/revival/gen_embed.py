@@ -54,7 +54,7 @@ def main():
     logger.info(f"Loaded in data from: {os.getenv('DATA')}")
 
     # specify the specific ids in here
-    text_query = data.query(f'speaker == {os.getenv("SPEAKER")}').sort_index()
+    text_query = data.query(f'speaker == "{os.getenv("SPEAKER")}"').sort_index()
     # text_data = text_query['text'].to_list()
 
     # text_data = ["Your text data here..."]

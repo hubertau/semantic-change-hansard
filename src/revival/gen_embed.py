@@ -39,6 +39,19 @@ def main():
     random_seed = 42
     random.seed(random_seed)
 
+    if not os.getenv('SPEAKER'):
+        raise ValueError('Please provide a speaker.')
+
+    # Prepare storage
+    hdf5_file = Path(os.getenv('SAVEFOLDER'))/f"{os.getenv('SPEAKER')}_embeddings.h5".replace(" ", "_")
+    assert os.path.isdir(Path(os.getenv('SAVEFOLDER')))
+    logger.info(f'Embeddings to be saved to: {hdf5_file}')
+
+    OVERWRITE = bool(os.getenv('OVERWRITE'))
+    if os.path.isfile(hdf5_file) and not OVERWRITE:
+        logger.warning(f'File found at {hdf5_file}, not overwriting. Endings...')
+        return None
+
     # Set a random seed for PyTorch (for GPU as well)
     torch.manual_seed(random_seed)
     if torch.cuda.is_available():
@@ -67,10 +80,6 @@ def main():
     end_date = datetime(2020, 1, 1)
     time_intervals = generate_time_intervals(start_date, end_date, frequency=frequency)
 
-    # Prepare storage
-    hdf5_file = Path(os.getenv('SAVEFOLDER'))/f"{os.getenv('SPEAKER')}_embeddings.h5".replace(" ", "_")
-    assert os.path.isdir(Path(os.getenv('SAVEFOLDER')))
-    logger.info(f'Embeddings to be saved to: {hdf5_file}')
 
     with h5py.File(hdf5_file, 'w') as f:
         f.attrs['frequency'] = frequency

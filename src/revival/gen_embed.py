@@ -44,8 +44,8 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(random_seed)
 
-    tokenizer = AutoTokenizer.from_pretrained(os.getenv('MODEL'))
-    model = AutoModel.from_pretrained(os.getenv('MODEL'))
+    tokenizer = AutoTokenizer.from_pretrained(os.getenv('MODEL'), cache_dir = f"{os.getenv('CACHEDIR')}")
+    model = AutoModel.from_pretrained(os.getenv('MODEL'), cache_dir = f"{os.getenv('CACHEDIR')}")
     logger.info(f"Loaded in model: {os.getenv('MODEL')}")
 
     # Example data

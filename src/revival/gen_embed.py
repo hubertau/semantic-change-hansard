@@ -80,6 +80,7 @@ def main():
 
         for time_idx, time_point in enumerate(time_intervals[:-1]):
             next_time_point = time_intervals[time_idx + 1]
+            logger.info(f'Processing: {time_point} to {next_time_point}')
 
             # Retrieve texts within the time interval
             mask = (text_query['date'] >= time_point) & (text_query['date'] < next_time_point)
@@ -110,6 +111,7 @@ def main():
 
             all_embeddings = []
 
+            logger.info('Doing batch encoding')
             with torch.no_grad():
                 for batch in dataloader:
                     input_ids_batch, attention_mask_batch = batch

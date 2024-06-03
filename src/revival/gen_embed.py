@@ -122,7 +122,7 @@ def main():
             all_embeddings = torch.cat(all_embeddings, dim=0).numpy()
 
             # Encode texts as UTF-8
-            encoded_texts = [text.encode('utf-8') for text in chunked_texts]
+            encoded_texts = [text.encode('utf-8') for text in texts_for_time]
 
             # Store embeddings, words, and times
             embedding_group.create_dataset(f"time_{time_idx}", data=all_embeddings)

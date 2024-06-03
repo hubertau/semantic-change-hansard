@@ -61,7 +61,7 @@ def main():
     # max_length = tokenizer.model_max_length
 
     # Parameters
-    frequency = os.getenv('INTERVAL','M')  # Change this as needed
+    frequency = os.getenv('INTERVAL','1M')  # Change this as needed
     logger.info(f'Interval set at: {frequency}')
     start_date = datetime(2020, 1, 1)
     end_date = datetime(2022, 1, 1)

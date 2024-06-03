@@ -50,8 +50,8 @@ def main():
     logger.info(f"Loaded in model: {os.getenv('MODEL')}")
 
     # Example data
-    data = pd.read_parquet(os.getenv('DATA'))
-    logger.info(f"Loaded in data from: {os.getenv('DATA')}")
+    data = pd.read_parquet(os.getenv('DATAFILE'))
+    logger.info(f"Loaded in data from: {os.getenv('DATAFILE')}")
 
     # specify the specific ids in here
     text_query = data.query(f'speaker == "{os.getenv("SPEAKER")}"').sort_index()
@@ -68,7 +68,7 @@ def main():
     time_intervals = generate_time_intervals(start_date, end_date, frequency=frequency)
 
     # Prepare storage
-    hdf5_file = Path(os.getenv('SAVEFOLDER'))/f"{os.getenv('SPEAKER')}_embeddings.h5"
+    hdf5_file = Path(os.getenv('SAVEFOLDER'))/f"{os.getenv('SPEAKER')}_embeddings.h5".replace(" ", "_")
     assert os.path.isdir(Path(os.getenv('SAVEFOLDER')))
     logger.info(f'Embeddings to be saved to: {hdf5_file}')
 

@@ -63,8 +63,8 @@ def main():
     # Parameters
     frequency = os.getenv('INTERVAL','1M')  # Change this as needed
     logger.info(f'Interval set at: {frequency}')
-    start_date = datetime(2020, 1, 1)
-    end_date = datetime(2022, 1, 1)
+    start_date = datetime(1990, 1, 1)
+    end_date = datetime(2020, 1, 1)
     time_intervals = generate_time_intervals(start_date, end_date, frequency=frequency)
 
     # Prepare storage

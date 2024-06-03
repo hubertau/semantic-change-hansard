@@ -68,8 +68,8 @@ def main():
     time_intervals = generate_time_intervals(start_date, end_date, frequency=frequency)
 
     # Prepare storage
-    hdf5_file = Path(os.get_env('SAVEFOLDER'))/f"{os.getenv('SPEAKER')}_embeddings.h5"
-    assert os.isdir(Path(os.get_env('SAVEFOLDER')))
+    hdf5_file = Path(os.getenv('SAVEFOLDER'))/f"{os.getenv('SPEAKER')}_embeddings.h5"
+    assert os.isdir(Path(os.getenv('SAVEFOLDER')))
     logger.info(f'Embeddings to be saved to: {hdf5_file}')
 
     with h5py.File(hdf5_file, 'w') as f:

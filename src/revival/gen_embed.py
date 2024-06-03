@@ -121,9 +121,13 @@ def main():
 
             all_embeddings = torch.cat(all_embeddings, dim=0).numpy()
 
+            # Encode texts as UTF-8
+            encoded_texts = [text.encode('utf-8') for text in chunked_texts]
+
             # Store embeddings, words, and times
             embedding_group.create_dataset(f"time_{time_idx}", data=all_embeddings)
-            words_group.create_dataset(f"time_{time_idx}", data=np.array(texts_for_time, dtype='S'))
+            # words_group.create_dataset(f"time_{time_idx}", data=np.array(texts_for_time, dtype='S'))
+            words_group.create_dataset(f"time_{time_idx}", data=np.array(encoded_texts, dtype=h5py.special_dtype(vlen=bytes)))
             times_group.create_dataset(f"time_{time_idx}", data=np.string_([time_point.isoformat(), next_time_point.isoformat()]))
 
     logger.info(f"Embeddings stored in {hdf5_file}")

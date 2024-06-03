@@ -41,6 +41,7 @@ def main():
 
     if not os.getenv('SPEAKER'):
         raise ValueError('Please provide a speaker.')
+    logger.info(f'SPEAKER is: {os.getenv("SPEAKER")}')
 
     # Prepare storage
     hdf5_file = Path(os.getenv('SAVEFOLDER'))/f"{os.getenv('SPEAKER')}_embeddings.h5".replace(" ", "_")

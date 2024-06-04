@@ -3,20 +3,14 @@ import pandas as pd
 from pathlib import Path
 import os
 from loguru import logger
-from tqdm.notebook import tqdm
 import random
-import torch
 from transformers import AutoTokenizer, AutoModel
 import torch
 from torch.utils.data import DataLoader, TensorDataset
-import click
-import h5py
-import torch
-from torch.utils.data import DataLoader, TensorDataset
-from tqdm import tqdm
 import h5py
 import numpy as np
 from datetime import datetime, timedelta
+from collections import defaultdict
 
 def generate_time_intervals(start_date, end_date, frequency='3M'):
     intervals = []
@@ -32,12 +26,14 @@ def generate_time_intervals(start_date, end_date, frequency='3M'):
         # Add more conditions for other frequencies if needed
     return intervals
 
-
 def main():
 
     # Set a random seed
     random_seed = 42
     random.seed(random_seed)
+
+    # Layers to consider
+    layers = [-4, -3, -2, -1]
 
     if not os.getenv('SPEAKER'):
         raise ValueError('Please provide a speaker.')
@@ -60,7 +56,7 @@ def main():
 
     logger.info(f"Attempting to load in model: {os.getenv('MODEL')}")
     tokenizer = AutoTokenizer.from_pretrained(os.getenv('MODEL'), cache_dir = f"{os.getenv('CACHEDIR')}")
-    model = AutoModel.from_pretrained(os.getenv('MODEL'), cache_dir = f"{os.getenv('CACHEDIR')}")
+    model = AutoModel.from_pretrained(os.getenv('MODEL'), cache_dir = f"{os.getenv('CACHEDIR')}", output_hidden_states=True)
     logger.info(f"Loaded in model: {os.getenv('MODEL')}")
 
     # Example data
@@ -77,7 +73,7 @@ def main():
     # Parameters
     frequency = os.getenv('INTERVAL','1M')  # Change this as needed
     logger.info(f'Interval set at: {frequency}')
-    start_date = datetime(1990, 1, 1)
+    start_date = datetime(1988, 1, 1)
     end_date = datetime(2020, 1, 1)
     time_intervals = generate_time_intervals(start_date, end_date, frequency=frequency)
 
@@ -119,25 +115,35 @@ def main():
             batch_size = 32
             dataloader = DataLoader(dataset, batch_size=batch_size)
 
-            all_embeddings = []
+            # all_embeddings = []
+
+            all_words = defaultdict(list)
 
             logger.info('Doing batch encoding')
             with torch.no_grad():
                 for batch in dataloader:
                     input_ids_batch, attention_mask_batch = batch
                     outputs = model(input_ids_batch, attention_mask=attention_mask_batch)
-                    word_embeddings = outputs.last_hidden_state
-                    all_embeddings.append(word_embeddings)
+                    states = outputs.hidden_states
+                    # Stack and sum all requested layers
+                    output = torch.stack([states[i] for i in layers]).sum(0).squeeze()
+                    # Only select the tokens that constitute the requested word
+                    for i in range(output.shape[0]):
+                        for j in range(output.shape[1]):
+                            all_words[input_ids_batch[i][j].item()].append(output[i][j])
 
-            all_embeddings = torch.cat(all_embeddings, dim=0).numpy()
+            words_final = {tokenizer.decode(k): torch.mean(torch.stack(v),axis=0) for k, v in all_words.items()}
 
-            # Encode texts as UTF-8
-            encoded_texts = [text.encode('utf-8') for text in texts_for_time]
+            all_embeddings = torch.zeros(len(words_final), words_final[list(words_final.keys())[0]].shape[0])
+            words_list = []
+
+            for i,k,v in enumerate(words_final.items()):
+                all_embeddings[i] = v
+                words_list.append(k)
 
             # Store embeddings, words, and times
             embedding_group.create_dataset(f"time_{time_idx}", data=all_embeddings)
-            # words_group.create_dataset(f"time_{time_idx}", data=np.array(texts_for_time, dtype='S'))
-            words_group.create_dataset(f"time_{time_idx}", data=np.array(encoded_texts, dtype=h5py.special_dtype(vlen=bytes)))
+            words_group.create_dataset(f"time_{time_idx}", data=np.array(words_list, dtype=h5py.special_dtype(vlen=bytes)))
             times_group.create_dataset(f"time_{time_idx}", data=np.string_([time_point.isoformat(), next_time_point.isoformat()]))
 
     logger.info(f"Embeddings stored in {hdf5_file}")

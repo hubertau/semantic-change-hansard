@@ -123,27 +123,38 @@ def main():
             with torch.no_grad():
                 for batch in dataloader:
                     input_ids_batch, attention_mask_batch = batch
+                    logger.debug(input_ids_batch.shape)
                     outputs = model(input_ids_batch, attention_mask=attention_mask_batch)
                     states = outputs.hidden_states
                     # Stack and sum all requested layers
-                    output = torch.stack([states[i] for i in layers]).sum(0).squeeze()
+                    output = torch.stack([states[i] for i in layers]).sum(0)
+                    logger.debug(output.shape)
                     # Only select the tokens that constitute the requested word
                     for i in range(output.shape[0]):
                         for j in range(output.shape[1]):
-                            all_words[input_ids_batch[i][j].item()].append(output[i][j])
+                            try:
+                                all_words[input_ids_batch[i][j].item()].append(output[i][j])
+                            except:
+                                logger.info(input_ids_batch.shape)
+                                logger.info(output.shape)
+                                logger.info((i,j))
+                                return None
 
             words_final = {tokenizer.decode(k): torch.mean(torch.stack(v),axis=0) for k, v in all_words.items()}
 
             all_embeddings = torch.zeros(len(words_final), words_final[list(words_final.keys())[0]].shape[0])
             words_list = []
 
-            for i,k,v in enumerate(words_final.items()):
+            for i, (k, v) in enumerate(words_final.items()):
                 all_embeddings[i] = v
                 words_list.append(k)
 
+            words_array = np.array(words_list, dtype=h5py.string_dtype(encoding='utf-8'))
+
             # Store embeddings, words, and times
-            embedding_group.create_dataset(f"time_{time_idx}", data=all_embeddings)
-            words_group.create_dataset(f"time_{time_idx}", data=np.array(words_list, dtype=h5py.special_dtype(vlen=bytes)))
+            embedding_group.create_dataset(f"time_{time_idx}", data=all_embeddings.numpy())
+            # words_group.create_dataset(f"time_{time_idx}", data=np.array(words_list, dtype=h5py.special_dtype(vlen=bytes)))
+            words_group.create_dataset(f"time_{time_idx}", data=words_array)
             times_group.create_dataset(f"time_{time_idx}", data=np.string_([time_point.isoformat(), next_time_point.isoformat()]))
 
     logger.info(f"Embeddings stored in {hdf5_file}")

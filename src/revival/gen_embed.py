@@ -34,6 +34,8 @@ def main():
     random_seed = 42
     random.seed(random_seed)
 
+    logger.info(f'CUDA: {torch.cuda.is_available()}')
+
     # Layers to consider
     layers = [-4, -3, -2, -1]
 
@@ -92,7 +94,7 @@ def main():
 
             # Retrieve texts within the time interval
             mask = (text_query['date'] >= time_point) & (text_query['date'] < next_time_point)
-            texts_for_time = text_query.loc[mask, 'text'].apply(str.lower).to_list().tolist()
+            texts_for_time = text_query.loc[mask, 'text'].apply(str.lower).to_list()
 
             if not texts_for_time:
                 continue

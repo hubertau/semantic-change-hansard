@@ -28,6 +28,8 @@ def generate_time_intervals(start_date, end_date, frequency='3M'):
 
 def main():
 
+    logger.level(os.getenv('LOGLEVEL', 'INFO'))
+
     # Set a random seed
     random_seed = 42
     random.seed(random_seed)
@@ -90,7 +92,7 @@ def main():
 
             # Retrieve texts within the time interval
             mask = (text_query['date'] >= time_point) & (text_query['date'] < next_time_point)
-            texts_for_time = text_query.loc[mask, 'text'].tolist()
+            texts_for_time = text_query.loc[mask, 'text'].apply(str.lower).to_list().tolist()
 
             if not texts_for_time:
                 continue
@@ -135,10 +137,10 @@ def main():
                             try:
                                 all_words[input_ids_batch[i][j].item()].append(output[i][j])
                             except:
-                                logger.info(input_ids_batch.shape)
-                                logger.info(output.shape)
-                                logger.info((i,j))
-                                return None
+                                logger.warning(input_ids_batch.shape)
+                                logger.warning(output.shape)
+                                logger.warning((i,j))
+                                raise ValueError
 
             words_final = {tokenizer.decode(k): torch.mean(torch.stack(v),axis=0) for k, v in all_words.items()}
 
@@ -153,7 +155,6 @@ def main():
 
             # Store embeddings, words, and times
             embedding_group.create_dataset(f"time_{time_idx}", data=all_embeddings.numpy())
-            # words_group.create_dataset(f"time_{time_idx}", data=np.array(words_list, dtype=h5py.special_dtype(vlen=bytes)))
             words_group.create_dataset(f"time_{time_idx}", data=words_array)
             times_group.create_dataset(f"time_{time_idx}", data=np.string_([time_point.isoformat(), next_time_point.isoformat()]))
 

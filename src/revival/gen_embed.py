@@ -11,6 +11,7 @@ import h5py
 import numpy as np
 from datetime import datetime, timedelta
 from collections import defaultdict
+import sys
 
 def generate_time_intervals(start_date, end_date, frequency='3M'):
     intervals = []
@@ -29,6 +30,8 @@ def generate_time_intervals(start_date, end_date, frequency='3M'):
 def main():
 
     logger.level(os.getenv('LOGLEVEL', 'INFO'))
+    logger.remove(0)
+    logger.add(sys.stderr, level="INFO")
 
     # Set a random seed
     random_seed = 42

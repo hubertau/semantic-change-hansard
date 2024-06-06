@@ -123,8 +123,8 @@ def main():
             input_ids = encoding['input_ids']
             attention_mask = encoding['attention_mask']
 
-            input_ids.to(device)
-            attention_mask.to(device)
+            # input_ids.to(device)
+            # attention_mask.to(device)
 
             dataset = TensorDataset(input_ids, attention_mask)
             batch_size = 32
@@ -139,6 +139,10 @@ def main():
                 for batch in dataloader:
                     input_ids_batch, attention_mask_batch = batch
                     logger.debug(input_ids_batch.shape)
+
+                    input_ids_batch.to(device)
+                    attention_mask_batch.to(device)
+
                     outputs = model(input_ids_batch, attention_mask=attention_mask_batch)
                     states = outputs.hidden_states
                     # Stack and sum all requested layers

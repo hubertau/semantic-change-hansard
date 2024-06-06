@@ -140,8 +140,8 @@ def main():
                     input_ids_batch, attention_mask_batch = batch
                     logger.debug(input_ids_batch.shape)
 
-                    input_ids_batch.to(device)
-                    attention_mask_batch.to(device)
+                    input_ids_batch = input_ids_batch.to(device)
+                    attention_mask_batch = attention_mask_batch.to(device)
 
                     outputs = model(input_ids_batch, attention_mask=attention_mask_batch)
                     states = outputs.hidden_states

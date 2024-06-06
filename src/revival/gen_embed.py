@@ -35,6 +35,7 @@ def main():
     random.seed(random_seed)
 
     logger.info(f'CUDA: {torch.cuda.is_available()}')
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
     # Layers to consider
     layers = [-4, -3, -2, -1]
@@ -60,7 +61,11 @@ def main():
 
     logger.info(f"Attempting to load in model: {os.getenv('MODEL')}")
     tokenizer = AutoTokenizer.from_pretrained(os.getenv('MODEL'), cache_dir = f"{os.getenv('CACHEDIR')}")
-    model = AutoModel.from_pretrained(os.getenv('MODEL'), cache_dir = f"{os.getenv('CACHEDIR')}", output_hidden_states=True)
+    model = AutoModel.from_pretrained(
+        os.getenv('MODEL'),
+        cache_dir = f"{os.getenv('CACHEDIR')}", output_hidden_states=True,
+    )
+    model.to(device)
     logger.info(f"Loaded in model: {os.getenv('MODEL')}")
 
     # Example data
@@ -114,6 +119,9 @@ def main():
 
             input_ids = encoding['input_ids']
             attention_mask = encoding['attention_mask']
+
+            input_ids.to(device)
+            attention_mask.to(device)
 
             dataset = TensorDataset(input_ids, attention_mask)
             batch_size = 32

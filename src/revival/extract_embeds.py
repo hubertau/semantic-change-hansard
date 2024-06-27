@@ -216,21 +216,21 @@ def main():
     ref_woi = 'disease'
     ref_woi_suffixes = wois[ref_woi]
 
-    logger.info('Retrieving reference vec...')
+    # logger.info('Retrieving reference vec...')
 
-    if ref_woi in ref_embed_obj.words[ref_embed_idx]:
+    # if ref_woi in ref_embed_obj.words[ref_embed_idx]:
 
-        ref_vec = ref_embed_obj.embeddings[ref_embed_obj.time_indices[ref_embed_idx]][ref_embed_obj.words[ref_embed_idx].index(ref_woi)]
+    #     ref_vec = ref_embed_obj.embeddings[ref_embed_obj.time_indices[ref_embed_idx]][ref_embed_obj.words[ref_embed_idx].index(ref_woi)]
 
-        for suf in ref_woi_suffixes:
-            ref_vec += ref_embed_obj.embeddings[ref_embed_obj.time_indices[ref_embed_idx]][ref_embed_obj.words[ref_embed_idx].index(suf)] 
+    #     for suf in ref_woi_suffixes:
+    #         ref_vec += ref_embed_obj.embeddings[ref_embed_obj.time_indices[ref_embed_idx]][ref_embed_obj.words[ref_embed_idx].index(suf)] 
 
-        ref_vec = ref_vec.reshape(1,-1)
+    #     ref_vec = ref_vec.reshape(1,-1)
 
-    else:
-        raise ValueError(f'Reference word {ref_woi} not in most overlapping embedding')
+    # else:
+    #     raise ValueError(f'Reference word {ref_woi} not in most overlapping embedding')
 
-    logger.info('Done')
+    # logger.info('Done')
     # loading in model
 
     # model = AutoModel.from_pretrained(
@@ -250,7 +250,7 @@ def main():
     # define start objects
     start_times = []
     end_times = []
-    cos = []
+    # cos = []
     woi_embeds = []
     speakers = []
     corresponding_words = []
@@ -317,7 +317,7 @@ def main():
                 speakers.append(speaker)
 
                 # cosine similarity to our reference word
-                cos.append(cosine_similarity(ref_vec.reshape(1, -1), woi_embed.reshape(1, -1)).item())
+                # cos.append(cosine_similarity(ref_vec.reshape(1, -1), woi_embed.reshape(1, -1)).item())
 
                 # and the word itself
                 corresponding_words.append(COMBINED_WORD)
@@ -329,7 +329,7 @@ def main():
         min_dist=0
     ).fit_transform(np.stack(woi_embeds))
 
-    COMBINED_REF_WORD = _join_woi_with_suffixes(ref_woi, ref_woi_suffixes)
+    # COMBINED_REF_WORD = _join_woi_with_suffixes(ref_woi, ref_woi_suffixes)
 
     SPEAKER_LIST_FOR_FILENAME = list(set(speakers))
     SPEAKER_LIST_FOR_FILENAME = [i.split(' ')[-1] for i in SPEAKER_LIST_FOR_FILENAME]
@@ -343,7 +343,7 @@ def main():
         'UMAP Component 1': X_embedded[:,0],
         'UMAP Component 2': X_embedded[:,1],
         'month': start_times,
-        f'cos_{COMBINED_REF_WORD}': cos,
+        # f'cos_{COMBINED_REF_WORD}': cos,
         'embed': woi_embeds
     })
 

@@ -375,8 +375,6 @@ def main():
         'UMAP Component 1': X_embedded[:,0],
         'UMAP Component 2': X_embedded[:,1],
         'month': start_times,
-        # f'cos_{COMBINED_REF_WORD}': cos,
-        'embed': woi_embeds
     })
 
     for ref_w, vals in cos.items():

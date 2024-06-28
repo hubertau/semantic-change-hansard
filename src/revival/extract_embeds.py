@@ -164,8 +164,16 @@ def main():
     logger.info(f'CUDA: {torch.cuda.is_available()}')
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
-    files = glob.glob(str(EMBED_PATH / '*.h5'))
-    files = [Path(i) for i in files]
+    # files = glob.glob(str(EMBED_PATH / '*.h5'))
+    # files = [Path(i) for i in files]
+
+    pair = os.getenv('SPEAKER_PAIR').split(',')
+
+    files = [
+        EMBED_PATH / f'{pair[0].replace(' ', '_')}.h5',
+        EMBED_PATH / f'{pair[1].replace(' ', '_')}.h5'
+    ]
+
     for i in files:
         logger.info(f'Embedding file to be used: {i.stem}.h5')
 

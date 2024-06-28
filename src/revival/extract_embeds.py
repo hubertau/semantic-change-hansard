@@ -32,7 +32,7 @@ INTERMEDIATE_PATH = Path(os.getenv('INTERMEDIATE_PATH'))
 WORDS_FILE = Path(os.getenv('WORDS_FILE'))
 
 # reference word for 
-REF_WORD = Path(os.getenv('REF_WORD'))
+# REF_WORD = Path(os.getenv('REF_WORD'))
 
 sns.set_theme('paper')
 
@@ -221,12 +221,12 @@ def main():
     ref_embed_idx = ref_embed[1]
 
 
-    with open(os.getenv('REF_WORDLIST'), 'r') as f:
-        ref_woi_list = f.readlines()
-        ref_woi_list = [i.replace('\n', '') for i in ref_woi_list]
-        ref_woi_dict = {
-            i: wois[i] for i in ref_woi_list
-        }
+    # with open(os.getenv('REF_WORDLIST'), 'r') as f:
+    #     ref_woi_list = f.readlines()
+    #     ref_woi_list = [i.replace('\n', '') for i in ref_woi_list]
+    #     ref_woi_dict = {
+    #         i: wois[i] for i in ref_woi_list
+    #     }
 
     # ref_woi_embed_dict = {}
 

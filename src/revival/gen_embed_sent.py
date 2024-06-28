@@ -10,10 +10,6 @@ from torch.utils.data import DataLoader, TensorDataset
 import h5py
 from datetime import datetime
 import sys
-import nltk
-from nltk.tokenize import sent_tokenize
-
-nltk.download('punkt')
 
 def main():
 
@@ -70,17 +66,9 @@ def main():
     texts = text_query['text'].apply(str.lower).to_list()
     dates = text_query['date'].to_list()
 
-    # Split texts into sentences
-    sentences = []
-    sentence_dates = []
-    for text, date in zip(texts, dates):
-        for sentence in sent_tokenize(text):
-            sentences.append(sentence)
-            sentence_dates.append(date)
-
-    # Encode sentences
+    # Encode documents
     encoding = tokenizer.batch_encode_plus(
-        sentences,                      # List of input sentences
+        texts,                      # List of input documents
         padding=True,                  # Pad to the maximum sequence length
         truncation=True,               # Truncate to the maximum sequence length if necessary
         return_tensors='pt',           # Return PyTorch tensors
@@ -94,7 +82,7 @@ def main():
     batch_size = 32
     dataloader = DataLoader(dataset, batch_size=batch_size)
 
-    all_sentence_embeddings = []
+    all_document_embeddings = []
 
     logger.info('Doing batch encoding')
     with torch.no_grad():
@@ -111,19 +99,19 @@ def main():
             output = torch.stack([states[i] for i in layers]).sum(0)
             logger.debug(output.shape)
 
-            # Aggregate embeddings for each sentence (mean pooling)
-            sentence_embeddings = torch.mean(output, dim=1)
-            all_sentence_embeddings.append(sentence_embeddings.cpu())
+            # Aggregate embeddings for each document (mean pooling)
+            document_embeddings = torch.mean(output, dim=1)
+            all_document_embeddings.append(document_embeddings.cpu())
 
-    # Concatenate all sentence embeddings
-    all_sentence_embeddings = torch.cat(all_sentence_embeddings, dim=0)
-    sentences_array = np.array(sentences, dtype=h5py.string_dtype(encoding='utf-8'))
-    dates_array = np.array([date.isoformat() for date in sentence_dates], dtype=h5py.string_dtype(encoding='utf-8'))
+    # Concatenate all document embeddings
+    all_document_embeddings = torch.cat(all_document_embeddings, dim=0)
+    texts_array = np.array(texts, dtype=h5py.string_dtype(encoding='utf-8'))
+    dates_array = np.array([date.isoformat() for date in dates], dtype=h5py.string_dtype(encoding='utf-8'))
 
-    # Store embeddings, sentences, and dates
+    # Store embeddings, texts, and dates
     with h5py.File(hdf5_file, 'w') as f:
-        f.create_dataset('embeddings', data=all_sentence_embeddings.numpy())
-        f.create_dataset('sentences', data=sentences_array)
+        f.create_dataset('embeddings', data=all_document_embeddings.numpy())
+        f.create_dataset('texts', data=texts_array)
         f.create_dataset('dates', data=dates_array)
 
     logger.info(f"Embeddings stored in {hdf5_file}")

@@ -34,7 +34,6 @@ WORDS_FILE = Path(os.getenv('WORDS_FILE'))
 # reference word for 
 REF_WORD = Path(os.getenv('REF_WORD'))
 
-
 sns.set_theme('paper')
 
 @dataclass
@@ -229,36 +228,36 @@ def main():
             i: wois[i] for i in ref_woi_list
         }
 
-    ref_woi_embed_dict = {}
+    # ref_woi_embed_dict = {}
 
-    model = AutoModel.from_pretrained(
-        'FacebookAI/xlm-roberta-large-finetuned-conll03-english',
-        output_hidden_states=True
-    )
-    tokenizer = AutoTokenizer.from_pretrained('FacebookAI/xlm-roberta-large-finetuned-conll03-english')
+    # model = AutoModel.from_pretrained(
+    #     'FacebookAI/xlm-roberta-large-finetuned-conll03-english',
+    #     output_hidden_states=True
+    # )
+    # tokenizer = AutoTokenizer.from_pretrained('FacebookAI/xlm-roberta-large-finetuned-conll03-english')
 
-    for w, ws in ref_woi_dict:
-        # Encode the word with suffixes
-        joined_word = _join_woi_with_suffixes(w, ws)
-        encoding = tokenizer.encode(joined_word, return_tensors='pt')
+    # for w, ws in ref_woi_dict:
+    #     # Encode the word with suffixes
+    #     joined_word = _join_woi_with_suffixes(w, ws)
+    #     encoding = tokenizer.encode(joined_word, return_tensors='pt')
 
-        # Get the model's output
-        outputs = model(encoding)
-        states = outputs.hidden_states
+    #     # Get the model's output
+    #     outputs = model(encoding)
+    #     states = outputs.hidden_states
 
-        # Sum the embeddings from the last 4 layers
-        layers = [-4, -3, -2, -1]
-        output = torch.stack([states[i] for i in layers]).sum(0).squeeze()
+    #     # Sum the embeddings from the last 4 layers
+    #     layers = [-4, -3, -2, -1]
+    #     output = torch.stack([states[i] for i in layers]).sum(0).squeeze()
 
-        # Decode the tokens to find the positions of sub-word tokens
-        decoded_tokens = tokenizer.convert_ids_to_tokens(encoding[0])
-        subword_indices = [i for i, token in enumerate(decoded_tokens) if token.startswith('▁') or (token != decoded_tokens[0] and token != decoded_tokens[-1])]
+    #     # Decode the tokens to find the positions of sub-word tokens
+    #     decoded_tokens = tokenizer.convert_ids_to_tokens(encoding[0])
+    #     subword_indices = [i for i, token in enumerate(decoded_tokens) if token.startswith('▁') or (token != decoded_tokens[0] and token != decoded_tokens[-1])]
 
-        # Sum the embeddings of the sub-word tokens
-        ref_vec = output[subword_indices].sum(dim=0).detach().numpy()
+    #     # Sum the embeddings of the sub-word tokens
+    #     ref_vec = output[subword_indices].sum(dim=0).detach().numpy()
 
-        # Store the resulting embedding in the dictionary
-        ref_woi_embed_dict[joined_word] = ref_vec
+    #     # Store the resulting embedding in the dictionary
+    #     ref_woi_embed_dict[joined_word] = ref_vec
 
     # logger.info('Retrieving reference vec...')
 
@@ -281,7 +280,7 @@ def main():
     start_times = []
     end_times = []
     # cos = []
-    cos = {}
+    # cos = {}
     woi_embeds = []
     speakers = []
     corresponding_words = []
@@ -348,8 +347,8 @@ def main():
                 speakers.append(speaker)
 
                 # cosine similarity to our reference word
-                for ref_w, ref_w_embed in ref_woi_dict.items():
-                    cos[ref_w].append(cosine_similarity(ref_w_embed.reshape(1, -1), woi_embed.reshape(1, -1)).item())
+                # for ref_w, ref_w_embed in ref_woi_dict.items():
+                #     cos[ref_w].append(cosine_similarity(ref_w_embed.reshape(1, -1), woi_embed.reshape(1, -1)).item())
 
                 # and the word itself
                 corresponding_words.append(COMBINED_WORD)
@@ -375,10 +374,11 @@ def main():
         'UMAP Component 1': X_embedded[:,0],
         'UMAP Component 2': X_embedded[:,1],
         'month': start_times,
+        'embeds': woi_embeds
     })
 
-    for ref_w, vals in cos.items():
-        PLOT_DF[f'cos_{ref_w}'] = vals
+    # for ref_w, vals in cos.items():
+        # PLOT_DF[f'cos_{ref_w}'] = vals
 
     PLOT_DF.to_parquet(PLOT_DF_FILENAME)
 

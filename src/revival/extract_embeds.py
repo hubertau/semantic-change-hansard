@@ -221,8 +221,44 @@ def main():
     ref_embed_obj = extracted_embeds[ref_embed[0]]
     ref_embed_idx = ref_embed[1]
 
-    ref_woi = 'disease'
-    ref_woi_suffixes = wois[ref_woi]
+
+    with open(os.getenv('REF_WORDLIST'), 'r') as f:
+        ref_woi_list = f.readlines()
+        ref_woi_list = [i.replace('\n', '') for i in ref_woi_list]
+        ref_woi_dict = {
+            i: wois[i] for i in ref_woi_list
+        }
+
+    ref_woi_embed_dict = {}
+
+    model = AutoModel.from_pretrained(
+        'FacebookAI/xlm-roberta-large-finetuned-conll03-english',
+        output_hidden_states=True
+    )
+    tokenizer = AutoTokenizer.from_pretrained('FacebookAI/xlm-roberta-large-finetuned-conll03-english')
+
+    for w, ws in ref_woi_dict:
+        # Encode the word with suffixes
+        joined_word = _join_woi_with_suffixes(w, ws)
+        encoding = tokenizer.encode(joined_word, return_tensors='pt')
+
+        # Get the model's output
+        outputs = model(encoding)
+        states = outputs.hidden_states
+
+        # Sum the embeddings from the last 4 layers
+        layers = [-4, -3, -2, -1]
+        output = torch.stack([states[i] for i in layers]).sum(0).squeeze()
+
+        # Decode the tokens to find the positions of sub-word tokens
+        decoded_tokens = tokenizer.convert_ids_to_tokens(encoding[0])
+        subword_indices = [i for i, token in enumerate(decoded_tokens) if token.startswith('▁') or (token != decoded_tokens[0] and token != decoded_tokens[-1])]
+
+        # Sum the embeddings of the sub-word tokens
+        ref_vec = output[subword_indices].sum(dim=0).detach().numpy()
+
+        # Store the resulting embedding in the dictionary
+        ref_woi_embed_dict[joined_word] = ref_vec
 
     # logger.info('Retrieving reference vec...')
 
@@ -239,26 +275,13 @@ def main():
     #     raise ValueError(f'Reference word {ref_woi} not in most overlapping embedding')
 
     # logger.info('Done')
-    # loading in model
 
-    # model = AutoModel.from_pretrained(
-    #     'FacebookAI/xlm-roberta-large-finetuned-conll03-english',
-    #     output_hidden_states=True
-    # )
-    # # tokenizer = AutoTokenizer.from_pretrained('FacebookAI/xlm-roberta-large-finetuned-conll03-english')
-
-    # encoding = tokenizer.encode(woi+woi_suffix, return_tensors='pt')
-    # outputs = model(encoding)
-    # states = outputs.hidden_states
-    # layers = [-4,-3,-2,-1]
-    # output = torch.stack([states[i] for i in layers]).sum(0).squeeze()
-    # # Only select the tokens that constitute the requested word
-    # ref_vec = output].detach().numpy()
 
     # define start objects
     start_times = []
     end_times = []
     # cos = []
+    cos = {}
     woi_embeds = []
     speakers = []
     corresponding_words = []
@@ -325,7 +348,8 @@ def main():
                 speakers.append(speaker)
 
                 # cosine similarity to our reference word
-                # cos.append(cosine_similarity(ref_vec.reshape(1, -1), woi_embed.reshape(1, -1)).item())
+                for ref_w, ref_w_embed in ref_woi_dict.items():
+                    cos[ref_w].append(cosine_similarity(ref_w_embed.reshape(1, -1), woi_embed.reshape(1, -1)).item())
 
                 # and the word itself
                 corresponding_words.append(COMBINED_WORD)
@@ -354,6 +378,9 @@ def main():
         # f'cos_{COMBINED_REF_WORD}': cos,
         'embed': woi_embeds
     })
+
+    for ref_w, vals in cos.items():
+        PLOT_DF[f'cos_{ref_w}'] = vals
 
     PLOT_DF.to_parquet(PLOT_DF_FILENAME)
 

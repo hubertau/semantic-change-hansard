@@ -169,8 +169,8 @@ def main():
     pair = os.getenv('SPEAKER_PAIR').split(',')
 
     files = [
-        EMBED_PATH / f'{pair[0].replace(' ', '_')}.h5',
-        EMBED_PATH / f'{pair[1].replace(' ', '_')}.h5'
+        EMBED_PATH / f'{pair[0].replace(' ', '_')}_embeddings.h5',
+        EMBED_PATH / f'{pair[1].replace(' ', '_')}_embeddings.h5'
     ]
 
     for i in files:

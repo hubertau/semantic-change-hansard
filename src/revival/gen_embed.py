@@ -1,3 +1,5 @@
+# Script for WORD embeddings
+
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -77,10 +79,6 @@ def main():
 
     # specify the specific ids in here
     text_query = data.query(f'speaker == "{os.getenv("SPEAKER")}"').sort_index()
-    # text_data = text_query['text'].to_list()
-
-    # text_data = ["Your text data here..."]
-    # max_length = tokenizer.model_max_length
 
     # Parameters
     frequency = os.getenv('INTERVAL','1M')  # Change this as needed
@@ -106,11 +104,6 @@ def main():
 
             if not texts_for_time:
                 continue
-
-            # Split and encode text
-            # chunked_texts = []
-            # for text in texts_for_time:
-            #     chunked_texts.extend(chunk_text(text, max_length))
 
             encoding = tokenizer.batch_encode_plus(
                 texts_for_time,                 # List of input text chunks

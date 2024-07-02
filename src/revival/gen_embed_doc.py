@@ -1,3 +1,6 @@
+# Script for DOCUMENT embeddings
+
+
 import numpy as np
 import pandas as pd
 from pathlib import Path
